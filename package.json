@@ -1,0 +1,69 @@
+{
+  "name": "react-native-animated-input",
+  "version": "1.0.0",
+  "description": "A React Native text input with dynamic font sizing and word-by-word dictation animations, powered by native iOS/Swift",
+  "main": "lib/commonjs/index.js",
+  "module": "lib/module/index.js",
+  "types": "lib/typescript/index.d.ts",
+  "react-native": "src/index.tsx",
+  "source": "src/index.tsx",
+  "files": [
+    "src",
+    "lib",
+    "ios",
+    "react-native-animated-input.podspec",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__"
+  ],
+  "scripts": {
+    "typescript": "tsc --noEmit",
+    "prepare": "bob build",
+    "release": "release-it"
+  },
+  "keywords": [
+    "react-native",
+    "ios",
+    "animated",
+    "input",
+    "text-input",
+    "dictation",
+    "dynamic-sizing"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/react-native-animated-input.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/react-native-animated-input/issues"
+  },
+  "homepage": "https://github.com/yourusername/react-native-animated-input#readme",
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-native": "^0.72.0",
+    "react": "^18.2.0",
+    "react-native": "^0.72.0",
+    "react-native-builder-bob": "^0.23.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      "commonjs",
+      "module",
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
+    ]
+  }
+}
