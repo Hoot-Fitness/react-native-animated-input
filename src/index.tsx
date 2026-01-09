@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useRef,
   useEffect,
+  useState,
   forwardRef,
   useImperativeHandle,
 } from 'react';
@@ -51,6 +52,9 @@ interface NativeContentSizeEvent {
     };
   };
 }
+
+// Default minimum height
+const DEFAULT_MIN_HEIGHT = 50;
 
 /**
  * AnimatedInput - A React Native text input with dynamic font sizing
@@ -111,6 +115,10 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
     ref
   ) => {
     const nativeRef = useRef<any>(null);
+    
+    // Track height for auto-grow
+    const effectiveMinHeight = minHeight > 0 ? minHeight : DEFAULT_MIN_HEIGHT;
+    const [height, setHeight] = useState<number>(effectiveMinHeight);
 
     // Expose focus/blur methods via ref
     useImperativeHandle(ref, () => ({
@@ -179,10 +187,26 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
       (event: NativeContentSizeEvent) => {
         const contentSize = event.nativeEvent?.contentSize;
         if (contentSize) {
+          // Update height for auto-grow
+          if (multiline && autoGrow) {
+            let newHeight = contentSize.height;
+            
+            // Apply min height
+            newHeight = Math.max(newHeight, effectiveMinHeight);
+            
+            // Apply max height if set
+            if (maxHeight > 0) {
+              newHeight = Math.min(newHeight, maxHeight);
+            }
+            
+            setHeight(newHeight);
+          }
+          
+          // Call user's callback
           onContentSizeChange?.(contentSize);
         }
       },
-      [onContentSizeChange]
+      [multiline, autoGrow, effectiveMinHeight, maxHeight, onContentSizeChange]
     );
 
     // Update native value when prop changes
@@ -214,8 +238,18 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
       ? processColor(placeholderTextColor)
       : undefined;
 
-    // Combine styles
-    const combinedStyle = StyleSheet.flatten([styles.default, style]);
+    // Build style with auto-grow height
+    // When auto-grow is enabled, we need to set an explicit height
+    const finalStyle = StyleSheet.flatten([styles.default, style]);
+    
+    // Override with auto-grow height if enabled
+    if (multiline && autoGrow) {
+      (finalStyle as any).height = height;
+      // Remove any minHeight/maxHeight from style since we handle it
+      delete (finalStyle as any).flex;
+    }
+    
+    const combinedStyle = finalStyle;
 
     // Handle unsupported platform
     if (!isNativeComponentAvailable) {
@@ -242,7 +276,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
         multiline={multiline}
         autoGrow={autoGrow}
         maxHeight={maxHeight}
-        minHeight={minHeight}
+        minHeight={effectiveMinHeight}
         onContentSizeChange={handleContentSizeChange}
         // Keyboard & Input handlers
         onInputFocus={handleFocus}
@@ -272,7 +306,7 @@ AnimatedInput.displayName = 'AnimatedInput';
 
 const styles = StyleSheet.create({
   default: {
-    minHeight: 50,
+    minHeight: DEFAULT_MIN_HEIGHT,
   },
 });
 
