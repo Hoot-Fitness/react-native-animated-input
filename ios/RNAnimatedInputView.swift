@@ -219,11 +219,10 @@ import UIKit
         currentFontSize = baseFontSize
         originalTextColor = textColor ?? .label
         
-        // Add tap gesture recognizer to ensure taps anywhere focus the input
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapAnywhere(_:)))
-        tapGesture.cancelsTouchesInView = false
-        tapGesture.delegate = self
-        addGestureRecognizer(tapGesture)
+        // NOTE: We intentionally do NOT add a custom tap gesture recognizer here.
+        // UITextView has built-in tap handling for focus. Adding a custom gesture
+        // with shouldRecognizeSimultaneouslyWith:true causes a conflict where both
+        // fire simultaneously, resulting in immediate focus followed by blur.
         
         updateFont()
         configureForMultiline()
@@ -855,6 +854,7 @@ import UIKit
     // MARK: - Cleanup
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
         animatingLabels.forEach { $0.removeFromSuperview() }
     }
 }
