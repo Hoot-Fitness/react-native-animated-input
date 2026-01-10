@@ -588,10 +588,22 @@ import UIKit
         previousWordCount = previousText.split(separator: " ").count
     }
     
-    public func textViewDidChangeSelection(_ textView: UITextView) {
-        if isInternalUpdate {
-            return
-        }
+    // MARK: - Keyboard Selection Handling
+    
+    /// Override the internal keyboardInputChangedSelection: method to prevent message forwarding.
+    /// When using keyboard controller libraries (like react-native-keyboard-controller) that use
+    /// composite delegates, the default ObjC message forwarding for this method causes infinite
+    /// recursion in KCTextInputCompositeDelegate.forwardingTarget(for:).
+    /// By implementing this method directly, we prevent the message from being forwarded.
+    @objc public func keyboardInputChangedSelection(_ sender: Any?) {
+        // No-op - just handle the message to prevent forwarding
+    }
+    
+    /// Override the internal keyboardInputChanged: method to prevent message forwarding.
+    /// This is a different method from keyboardInputChangedSelection: and also causes
+    /// infinite recursion when forwarded to composite delegates.
+    @objc public func keyboardInputChanged(_ sender: Any?) {
+        // No-op - just handle the message to prevent forwarding
     }
     
     // MARK: - UITextViewDelegate
