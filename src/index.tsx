@@ -1,4 +1,5 @@
-import React, {
+import type React from "react";
+import {
 	forwardRef,
 	useCallback,
 	useEffect,
@@ -6,6 +7,11 @@ import React, {
 	useRef,
 	useState,
 } from "react";
+import type {
+	HostComponent,
+	NativeSyntheticEvent,
+	ViewStyle,
+} from "react-native";
 import {
 	findNodeHandle,
 	Platform,
@@ -13,11 +19,6 @@ import {
 	requireNativeComponent,
 	StyleSheet,
 	UIManager,
-} from "react-native";
-import type {
-	HostComponent,
-	NativeSyntheticEvent,
-	ViewStyle,
 } from "react-native";
 
 import type {
@@ -99,6 +100,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 			minFontSize = 14,
 			isDictating = false,
 			animationDuration = 250,
+			onDictationTap,
 			style,
 		},
 		ref,
@@ -173,6 +175,14 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				onSubmitEditing?.(text);
 			},
 			[onSubmitEditing],
+		);
+
+		// Handle dictation tap
+		const handleDictationTap = useCallback(
+			(_event: NativeSyntheticEvent<Record<string, unknown>>) => {
+				onDictationTap?.();
+			},
+			[onDictationTap],
 		);
 
 		// Handle content size change (for auto-grow)
@@ -286,6 +296,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				// Dictation
 				isDictating={isDictating}
 				animationDuration={animationDuration}
+				onDictationTap={handleDictationTap}
 			/>
 		);
 	},

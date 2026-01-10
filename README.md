@@ -135,6 +135,11 @@ function DictationExample() {
   const [text, setText] = useState("");
   const [isDictating, setIsDictating] = useState(false);
 
+  const stopDictation = () => {
+    setIsDictating(false);
+    // Add your dictation stop logic here
+  };
+
   return (
     <View>
       <AnimatedInput
@@ -144,6 +149,7 @@ function DictationExample() {
         animationDuration={300}
         textAlign="center"
         dynamicSizing
+        onDictationTap={stopDictation} // Stop dictation when user taps input
       />
 
       <Button
@@ -352,10 +358,11 @@ function RefExample() {
 
 ### Dictation Animation Props
 
-| Prop                | Type      | Default | Description                        |
-| ------------------- | --------- | ------- | ---------------------------------- |
-| `isDictating`       | `boolean` | `false` | Enable word-by-word animations     |
-| `animationDuration` | `number`  | `250`   | Animation duration in milliseconds |
+| Prop                | Type         | Default | Description                                              |
+| ------------------- | ------------ | ------- | -------------------------------------------------------- |
+| `isDictating`       | `boolean`    | `false` | Enable word-by-word animations                           |
+| `animationDuration` | `number`     | `250`   | Animation duration in milliseconds                       |
+| `onDictationTap`    | `() => void` | -       | Callback when user taps the input while dictation active |
 
 ### Styling Props
 

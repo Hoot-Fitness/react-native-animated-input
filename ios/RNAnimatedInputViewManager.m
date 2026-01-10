@@ -49,6 +49,7 @@ RCT_EXPORT_VIEW_PROPERTY(minFontSize, CGFloat)
 // Dictation animation
 RCT_EXPORT_VIEW_PROPERTY(isDictating, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(animationDuration, double)
+RCT_EXPORT_VIEW_PROPERTY(onDictationTap, RCTDirectEventBlock)
 
 // Methods
 RCT_EXTERN_METHOD(setValue:(nonnull NSNumber *)node value:(NSString *)value)

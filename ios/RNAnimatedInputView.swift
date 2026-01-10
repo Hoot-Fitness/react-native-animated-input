@@ -10,6 +10,7 @@ import UIKit
     @objc public var onInputBlur: RCTDirectEventBlock?
     @objc public var onInputSubmit: RCTDirectEventBlock?
     @objc public var onContentSizeChange: RCTDirectEventBlock?
+    @objc public var onDictationTap: RCTDirectEventBlock?
     
     // MARK: - Text Properties
     
@@ -266,6 +267,10 @@ import UIKit
                 // Update the baseline and insert position for the new cursor location
                 dictationInsertPosition = newCursorPos
                 textBeforeDictation = text
+                
+                // Notify React Native that user tapped during dictation
+                // This allows the parent component to stop dictation if desired
+                onDictationTap?([:])
             }
         }
     }

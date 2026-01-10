@@ -87,6 +87,7 @@ export interface NativeAnimatedInputProps {
   // Dictation animation
   isDictating?: boolean;
   animationDuration?: number;
+  onDictationTap?: (event: NativeSyntheticEvent<Record<string, unknown>>) => void;
 }
 
 /**
@@ -225,6 +226,11 @@ export interface AnimatedInputProps {
   isDictating?: boolean;
   /** Animation duration in milliseconds @default 250 */
   animationDuration?: number;
+  /**
+   * Callback fired when the user taps the input while dictation mode is active.
+   * Use this to stop dictation when the user taps the input.
+   */
+  onDictationTap?: () => void;
 
   // Styling
   /** Style for the container view */
