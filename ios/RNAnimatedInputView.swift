@@ -205,6 +205,11 @@ import UIKit
         delegate = self
         backgroundColor = .clear
         
+        // CRITICAL: Disable automatic font scaling from accessibility settings.
+        // This ensures the font sizes passed via baseFontSize and fontSizeRules
+        // are used literally, regardless of the user's accessibility font settings.
+        adjustsFontForContentSizeCategory = false
+        
         // Configure text container for proper wrapping
         textContainer.lineBreakMode = .byWordWrapping
         textContainer.lineFragmentPadding = 0
@@ -454,6 +459,8 @@ import UIKit
         label.numberOfLines = 0
         label.isUserInteractionEnabled = false
         label.translatesAutoresizingMaskIntoConstraints = false
+        // Disable automatic font scaling from accessibility settings
+        label.adjustsFontForContentSizeCategory = false
         
         insertSubview(label, at: 0)  // Insert behind text layer instead of on top
         
@@ -623,6 +630,8 @@ import UIKit
         label.layer.zPosition = 1000  // Ensure label is above text layer
         label.backgroundColor = .clear
         label.isUserInteractionEnabled = false  // Allow touches to pass through
+        // Disable automatic font scaling from accessibility settings
+        label.adjustsFontForContentSizeCategory = false
         
         // Initial state: invisible and scaled up
         label.alpha = 0

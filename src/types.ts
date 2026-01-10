@@ -6,13 +6,25 @@ import type {
 } from 'react-native';
 
 /**
- * Font size rule for dynamic sizing
+ * Font size rule for dynamic sizing.
+ * Use `as const` when defining rules to get type-safe font size constraints.
+ * 
+ * @example
+ * ```tsx
+ * const rules = [
+ *   { maxLength: 20, fontSize: 32 },
+ *   { maxLength: 50, fontSize: 24 },
+ * ] as const;
+ * 
+ * // baseFontSize will only accept 32 | 24
+ * <AnimatedInput fontSizeRules={rules} baseFontSize={32} />
+ * ```
  */
-export interface FontSizeRule {
+export interface FontSizeRule<TFontSize extends number = number> {
   /** Maximum character length for this font size to apply */
   maxLength: number;
   /** Font size in points to use when text length is within maxLength */
-  fontSize: number;
+  fontSize: TFontSize;
 }
 
 /**
