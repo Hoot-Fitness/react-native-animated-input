@@ -1,7 +1,7 @@
 import UIKit
 
 /// A custom UITextView that supports dynamic font sizing and word-by-word dictation animations
-@objc public class RNAnimatedInputView: UITextView, UITextViewDelegate {
+@objc public class RNAnimatedInputView: UITextView, UITextViewDelegate, UIGestureRecognizerDelegate {
     
     // MARK: - Callbacks
     
@@ -210,6 +210,12 @@ import UIKit
         currentFontSize = baseFontSize
         originalTextColor = textColor ?? .label
         
+        // Add tap gesture recognizer to ensure taps anywhere focus the input
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapAnywhere(_:)))
+        tapGesture.cancelsTouchesInView = false
+        tapGesture.delegate = self
+        addGestureRecognizer(tapGesture)
+        
         updateFont()
         configureForMultiline()
         
@@ -231,6 +237,27 @@ import UIKit
         
     }
     
+    // MARK: - Touch Handling
+    
+    /// Handle tap anywhere in the view to ensure focus works on the entire area
+    @objc private func handleTapAnywhere(_ gesture: UITapGestureRecognizer) {
+        if !isFirstResponder {
+            becomeFirstResponder()
+        }
+        
+        // Position cursor at tap location
+        let point = gesture.location(in: self)
+        if let position = closestPosition(to: point) {
+            selectedTextRange = textRange(from: position, to: position)
+        }
+    }
+    
+    /// Allow our tap gesture to work alongside UITextView's built-in gestures
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
+    }
+    
+    
     // MARK: - Layout
     
     public override func layoutSubviews() {
@@ -241,6 +268,13 @@ import UIKit
             var newFrame = frame
             newFrame.size.height = targetAutoGrowHeight
             frame = newFrame
+            
+            // Also update superview's frame so touches work correctly
+            if let reactSuperview = superview, abs(reactSuperview.frame.height - targetAutoGrowHeight) > 0.5 {
+                var superFrame = reactSuperview.frame
+                superFrame.size.height = targetAutoGrowHeight
+                reactSuperview.frame = superFrame
+            }
         }
         
         // CRITICAL: Set text container width for proper text wrapping
@@ -313,16 +347,20 @@ import UIKit
             // Force intrinsic content size update and React Native layout
             invalidateIntrinsicContentSize()
             
-            // Directly update frame height
+            // Directly update frame height for both self and superview
+            // This ensures touches work correctly while React Native catches up
             if abs(frame.height - newHeight) > 0.5 {
                 var newFrame = frame
                 newFrame.size.height = newHeight
                 frame = newFrame
-            }
-            
-            // Tell React Native to update the view's frame
-            if let reactSuperview = superview {
-                reactSuperview.setNeedsLayout()
+                
+                // Also update the React Native container's frame so touches work
+                if let reactSuperview = superview {
+                    var superFrame = reactSuperview.frame
+                    superFrame.size.height = newHeight
+                    reactSuperview.frame = superFrame
+                    reactSuperview.setNeedsLayout()
+                }
             }
         }
     }
@@ -386,9 +424,10 @@ import UIKit
         label.textColor = placeholderTextColor
         label.textAlignment = _textAlign
         label.numberOfLines = 0
+        label.isUserInteractionEnabled = false
         label.translatesAutoresizingMaskIntoConstraints = false
         
-        addSubview(label)
+        insertSubview(label, at: 0)  // Insert behind text layer instead of on top
         
         NSLayoutConstraint.activate([
             label.topAnchor.constraint(equalTo: topAnchor, constant: textContainerInset.top),
@@ -534,6 +573,7 @@ import UIKit
         label.frame = rect
         label.layer.zPosition = 1000  // Ensure label is above text layer
         label.backgroundColor = .clear
+        label.isUserInteractionEnabled = false  // Allow touches to pass through
         
         // Initial state: invisible and scaled up
         label.alpha = 0
@@ -564,16 +604,17 @@ import UIKit
     }
     
     private func resetDictationTracking() {
-        // Remove any in-flight animation overlays
-        completeAllAnimationsImmediately()
+        // Remove any in-flight animation overlays and restore hidden text
+        completeAllAnimationsImmediately(restoreHiddenText: true)
         
         previousText = text ?? ""
         previousWordCount = previousText.split(separator: " ").count
     }
     
     /// Immediately complete all in-flight animations by removing overlay labels.
-    /// The hidden ranges will be restored when new attributedText is set.
-    private func completeAllAnimationsImmediately() {
+    /// - Parameter restoreHiddenText: If true, restore hidden text to visible. 
+    ///   Set to false when new attributedText will be set immediately after.
+    private func completeAllAnimationsImmediately(restoreHiddenText: Bool) {
         // Cancel all animations and remove labels immediately
         for label in animatingLabels {
             label.layer.removeAllAnimations()
@@ -581,7 +622,19 @@ import UIKit
         }
         animatingLabels.removeAll()
         
-        // Clear hidden ranges - they'll be invalid after new text is set anyway
+        // Restore hidden text if requested (needed when dictation ends)
+        if restoreHiddenText && !hiddenRanges.isEmpty {
+            isInternalUpdate = true
+            let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
+            for range in hiddenRanges {
+                if range.location + range.length <= mutableAttr.length {
+                    mutableAttr.addAttribute(.foregroundColor, value: originalTextColor, range: range)
+                }
+            }
+            attributedText = mutableAttr
+            isInternalUpdate = false
+        }
+        
         hiddenRanges.removeAll()
     }
     
@@ -660,7 +713,7 @@ import UIKit
         
         // Complete any in-flight animations before setting new text to prevent overlapping
         if isDictating && !animatingLabels.isEmpty {
-            completeAllAnimationsImmediately()
+            completeAllAnimationsImmediately(restoreHiddenText: false)
         }
         
         // CRITICAL: Ensure text container has unlimited height before setting text
