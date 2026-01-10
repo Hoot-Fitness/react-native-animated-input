@@ -151,6 +151,8 @@ import UIKit
             if isDictating && !oldValue {
                 dictationInsertPosition = selectedRange.location
                 textBeforeDictation = text
+                // Prepare haptic generator for immediate response
+                hapticGenerator.prepare()
             }
             
             // Reset tracking when dictation mode toggles to avoid stale hidden ranges
@@ -185,6 +187,7 @@ import UIKit
     private var cachedContainerWidth: CGFloat = 0
     private var dictationInsertPosition: Int = 0  // Cursor position when dictation started
     private var textBeforeDictation: String = ""  // Text content before dictation started (baseline for comparison)
+    private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
     
     // MARK: - Initialization
     
@@ -218,6 +221,9 @@ import UIKit
         // Initial setup
         currentFontSize = baseFontSize
         originalTextColor = textColor ?? .label
+        
+        // Prepare haptic generator for immediate response during dictation
+        hapticGenerator.prepare()
         
         // NOTE: We intentionally do NOT add a custom tap gesture recognizer here.
         // UITextView has built-in tap handling for focus. Adding a custom gesture
@@ -625,6 +631,9 @@ import UIKit
         addSubview(label)
         bringSubviewToFront(label)
         animatingLabels.append(label)
+        
+        // Trigger light haptic feedback for each word
+        hapticGenerator.impactOccurred()
         
         // Animate
         UIView.animate(
