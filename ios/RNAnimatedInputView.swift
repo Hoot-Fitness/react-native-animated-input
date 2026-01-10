@@ -146,6 +146,12 @@ import UIKit
     
     @objc public var isDictating: Bool = false {
         didSet {
+            // Save cursor position and text when dictation starts so we can insert new words at cursor
+            if isDictating && !oldValue {
+                dictationInsertPosition = selectedRange.location
+                textBeforeDictation = text
+            }
+            
             // Reset tracking when dictation mode toggles to avoid stale hidden ranges
             resetDictationTracking()
         }
@@ -176,6 +182,8 @@ import UIKit
     private var hiddenRanges: [NSRange] = []
     private var isInternalUpdate: Bool = false
     private var cachedContainerWidth: CGFloat = 0
+    private var dictationInsertPosition: Int = 0  // Cursor position when dictation started
+    private var textBeforeDictation: String = ""  // Text content before dictation started (baseline for comparison)
     
     // MARK: - Initialization
     
@@ -249,6 +257,16 @@ import UIKit
         let point = gesture.location(in: self)
         if let position = closestPosition(to: point) {
             selectedTextRange = textRange(from: position, to: position)
+            
+            // If user taps during dictation, update the insert position
+            // so new dictated words go to the new cursor location
+            if isDictating {
+                let newCursorPos = offset(from: beginningOfDocument, to: position)
+                
+                // Update the baseline and insert position for the new cursor location
+                dictationInsertPosition = newCursorPos
+                textBeforeDictation = text
+            }
         }
     }
     
@@ -457,13 +475,25 @@ import UIKit
         
         // Only animate if words were added (not removed or modified)
         if newWords.count > oldWords.count {
-            // Find new words
-            let newWordStartIndex = oldWords.count
+            // Find which words are new by comparing arrays
+            // Since we now insert at cursor position, we need to find the actual new words
+            let newWordsSet = Set(newWords)
+            var oldWordsCopy = oldWords
+            var newWordIndices: [Int] = []
             
-            for i in newWordStartIndex..<newWords.count {
-                let word = newWords[i]
-                if let range = rangeOfWord(at: i, in: newText) {
-                    animateNewWord(word: word, range: range, delay: Double(i - newWordStartIndex) * 0.05)
+            // Find indices of new words by comparing with old words
+            for (index, word) in newWords.enumerated() {
+                if let oldIndex = oldWordsCopy.firstIndex(of: word) {
+                    oldWordsCopy.remove(at: oldIndex)
+                } else {
+                    newWordIndices.append(index)
+                }
+            }
+            
+            for (delayIndex, wordIndex) in newWordIndices.enumerated() {
+                let word = newWords[wordIndex]
+                if let range = rangeOfWord(at: wordIndex, in: newText) {
+                    animateNewWord(word: word, range: range, delay: Double(delayIndex) * 0.05)
                 }
             }
         }
@@ -528,7 +558,10 @@ import UIKit
         mutableAttr.addAttribute(.foregroundColor, value: UIColor.clear, range: range)
         hiddenRanges.append(range)
         
+        // Preserve cursor position - setting attributedText resets it
+        let savedCursorPosition = selectedRange
         attributedText = mutableAttr
+        selectedRange = savedCursorPosition
         
         isInternalUpdate = false
     }
@@ -546,7 +579,10 @@ import UIKit
         mutableAttr.addAttribute(.foregroundColor, value: originalTextColor, range: range)
         hiddenRanges.removeAll { $0 == range }
         
+        // Preserve cursor position - setting attributedText resets it
+        let savedCursorPosition = selectedRange
         attributedText = mutableAttr
+        selectedRange = savedCursorPosition
         
         isInternalUpdate = false
     }
@@ -631,7 +667,10 @@ import UIKit
                     mutableAttr.addAttribute(.foregroundColor, value: originalTextColor, range: range)
                 }
             }
+            // Preserve cursor position - setting attributedText resets it
+            let savedCursorPosition = selectedRange
             attributedText = mutableAttr
+            selectedRange = savedCursorPosition
             isInternalUpdate = false
         }
         
@@ -708,8 +747,41 @@ import UIKit
     // MARK: - React Native Methods
     
     @objc public func setValue(_ value: String?) {
-        let newText = value ?? ""
+        var newText = value ?? ""
         guard text != newText else { return }
+        
+        // During dictation, insert new words at the saved cursor position instead of the end
+        // Compare against textBeforeDictation (baseline) to handle RN state sync issues
+        if isDictating && dictationInsertPosition > 0 && dictationInsertPosition <= textBeforeDictation.count {
+            // Detect what was appended by comparing incoming text against the baseline
+            if newText.hasPrefix(textBeforeDictation) {
+                var dictatedContent = String(newText.dropFirst(textBeforeDictation.count))
+                if !dictatedContent.isEmpty {
+                    // Build corrected text: [text before cursor] + [dictated content] + [text after cursor]
+                    let beforeCursor = String(textBeforeDictation.prefix(dictationInsertPosition))
+                    let afterCursor = String(textBeforeDictation.dropFirst(dictationInsertPosition))
+                    
+                    // Fix spacing: dictatedContent has leading space (for appending), but we're inserting in middle
+                    // 1. Remove leading space from dictatedContent if beforeCursor ends with space
+                    if beforeCursor.hasSuffix(" ") && dictatedContent.hasPrefix(" ") {
+                        dictatedContent = String(dictatedContent.dropFirst())
+                    }
+                    // 2. Add trailing space if afterCursor doesn't start with space/punctuation and dictatedContent doesn't end with space
+                    if !afterCursor.isEmpty && !dictatedContent.isEmpty {
+                        let firstAfterChar = afterCursor.first!
+                        let isAfterWhitespaceOrPunctuation = firstAfterChar.isWhitespace || firstAfterChar.isPunctuation
+                        let dictatedEndsWithSpace = dictatedContent.hasSuffix(" ")
+                        if !isAfterWhitespaceOrPunctuation && !dictatedEndsWithSpace {
+                            dictatedContent += " "
+                        }
+                    }
+                    
+                    let correctedText = beforeCursor + dictatedContent + afterCursor
+                    
+                    newText = correctedText
+                }
+            }
+        }
         
         // Complete any in-flight animations before setting new text to prevent overlapping
         if isDictating && !animatingLabels.isEmpty {
@@ -733,6 +805,15 @@ import UIKit
         ]
         let attrString = NSAttributedString(string: newText, attributes: attributes)
         self.attributedText = attrString
+        
+        // Position cursor after the inserted dictated content
+        if isDictating {
+            // Cursor should be at: dictationInsertPosition + length of dictated content
+            let dictatedLength = max(0, text.count - textBeforeDictation.count)
+            let cursorPos = min(dictationInsertPosition + dictatedLength, text.count)
+            
+            selectedRange = NSRange(location: cursorPos, length: 0)
+        }
         
         // Handle animation (compares previousText with new text, then hides new words)
         if isDictating {
