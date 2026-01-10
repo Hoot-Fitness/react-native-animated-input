@@ -565,28 +565,24 @@ import UIKit
     
     private func resetDictationTracking() {
         // Remove any in-flight animation overlays
-        animatingLabels.forEach { $0.removeFromSuperview() }
-        animatingLabels.removeAll()
-        
-        // Restore any hidden text
-        if !hiddenRanges.isEmpty {
-            isInternalUpdate = true
-            let rangesToRestore = hiddenRanges
-            hiddenRanges.removeAll()
-            
-            let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
-            for range in rangesToRestore {
-                if range.location + range.length <= mutableAttr.length {
-                    // Use originalTextColor because textColor might be affected by hideWordAt's clear color
-                    mutableAttr.addAttribute(.foregroundColor, value: originalTextColor, range: range)
-                }
-            }
-            attributedText = mutableAttr
-            isInternalUpdate = false
-        }
+        completeAllAnimationsImmediately()
         
         previousText = text ?? ""
         previousWordCount = previousText.split(separator: " ").count
+    }
+    
+    /// Immediately complete all in-flight animations by removing overlay labels.
+    /// The hidden ranges will be restored when new attributedText is set.
+    private func completeAllAnimationsImmediately() {
+        // Cancel all animations and remove labels immediately
+        for label in animatingLabels {
+            label.layer.removeAllAnimations()
+            label.removeFromSuperview()
+        }
+        animatingLabels.removeAll()
+        
+        // Clear hidden ranges - they'll be invalid after new text is set anyway
+        hiddenRanges.removeAll()
     }
     
     // MARK: - Keyboard Selection Handling
@@ -661,6 +657,11 @@ import UIKit
     @objc public func setValue(_ value: String?) {
         let newText = value ?? ""
         guard text != newText else { return }
+        
+        // Complete any in-flight animations before setting new text to prevent overlapping
+        if isDictating && !animatingLabels.isEmpty {
+            completeAllAnimationsImmediately()
+        }
         
         // CRITICAL: Ensure text container has unlimited height before setting text
         if textContainer.size.height < 10000 {
