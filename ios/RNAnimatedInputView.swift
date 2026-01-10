@@ -143,8 +143,13 @@ import UIKit
     
     // MARK: - Dictation Animation
     
-    @objc public var isDictating: Bool = false
-    @objc public var animationDuration: Double = 300
+    @objc public var isDictating: Bool = false {
+        didSet {
+            // Reset tracking when dictation mode toggles to avoid stale hidden ranges
+            resetDictationTracking()
+        }
+    }
+    @objc public var animationDuration: Double = 250
     
     // MARK: - Placeholder
     
@@ -165,9 +170,11 @@ import UIKit
     private var currentFontSize: CGFloat = 32
     private var originalTextColor: UIColor = .label
     private var lastContentHeight: CGFloat = 0
+    private var targetAutoGrowHeight: CGFloat = 0  // Store target height to reapply after RN layout
     private var animatingLabels: [UILabel] = []
     private var hiddenRanges: [NSRange] = []
     private var isInternalUpdate: Bool = false
+    private var cachedContainerWidth: CGFloat = 0
     
     // MARK: - Initialization
     
@@ -189,7 +196,11 @@ import UIKit
         textContainer.lineBreakMode = .byWordWrapping
         textContainer.lineFragmentPadding = 0
         textContainer.heightTracksTextView = false
-        textContainer.widthTracksTextView = false  // We'll manage this manually
+        textContainer.widthTracksTextView = false
+        
+        // CRITICAL: Set unlimited height immediately so text can wrap
+        // This must be done before any text is set
+        textContainer.size = CGSize(width: textContainer.size.width, height: .greatestFiniteMagnitude)
         
         // Insets
         textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
@@ -200,6 +211,19 @@ import UIKit
         
         updateFont()
         configureForMultiline()
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:commonInit", "commonInit completed", [
+            "lineBreakMode": String(describing: textContainer.lineBreakMode.rawValue),
+            "lineFragmentPadding": textContainer.lineFragmentPadding,
+            "widthTracksTextView": textContainer.widthTracksTextView,
+            "heightTracksTextView": textContainer.heightTracksTextView,
+            "maximumNumberOfLines": textContainer.maximumNumberOfLines,
+            "isScrollEnabled": isScrollEnabled,
+            "multiline": multiline,
+            "autoGrow": autoGrow
+        ], hypothesisId: "C")
+        // #endregion
     }
     
     private func configureForMultiline() {
@@ -215,6 +239,15 @@ import UIKit
             textContainer.maximumNumberOfLines = 1
             isScrollEnabled = false
         }
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:configureForMultiline", "configured multiline", [
+            "multiline": multiline,
+            "autoGrow": autoGrow,
+            "maximumNumberOfLines": textContainer.maximumNumberOfLines,
+            "isScrollEnabled": isScrollEnabled
+        ], hypothesisId: "C")
+        // #endregion
     }
     
     // MARK: - Layout
@@ -222,10 +255,70 @@ import UIKit
     public override func layoutSubviews() {
         super.layoutSubviews()
         
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:layoutSubviews", "layoutSubviews called", [
+            "boundsWidth": bounds.width,
+            "boundsHeight": bounds.height,
+            "frameWidth": frame.width,
+            "frameHeight": frame.height,
+            "targetAutoGrowHeight": targetAutoGrowHeight,
+            "textContainerSizeWidthBefore": textContainer.size.width,
+            "textContainerSizeHeightBefore": textContainer.size.height
+        ], hypothesisId: "A")
+        // #endregion
+        
+        // Reapply target height if React Native reset it (Hypothesis M fix)
+        if multiline && autoGrow && targetAutoGrowHeight > 0 && abs(frame.height - targetAutoGrowHeight) > 0.5 {
+            var newFrame = frame
+            newFrame.size.height = targetAutoGrowHeight
+            frame = newFrame
+            
+            // #region agent log
+            debugLog("RNAnimatedInputView.swift:layoutSubviews", "reapplied targetAutoGrowHeight", [
+                "targetAutoGrowHeight": targetAutoGrowHeight,
+                "newFrameHeight": frame.height
+            ], hypothesisId: "M")
+            // #endregion
+        }
+        
         // CRITICAL: Set text container width for proper text wrapping
         let containerWidth = bounds.width - textContainerInset.left - textContainerInset.right
-        if containerWidth > 0 && textContainer.size.width != containerWidth {
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:layoutSubviews", "containerWidth calculated", [
+            "containerWidth": containerWidth,
+            "insetLeft": textContainerInset.left,
+            "insetRight": textContainerInset.right,
+            "heightTracksTextView": textContainer.heightTracksTextView,
+            "widthTracksTextView": textContainer.widthTracksTextView
+        ], hypothesisId: "B")
+        // #endregion
+        
+        // Force disable tracking - UITextView may override our settings
+        textContainer.widthTracksTextView = false
+        textContainer.heightTracksTextView = false
+        
+        // Always set the container size for proper wrapping - width for wrap, height unlimited
+        if containerWidth > 0 {
+            let needsInvalidation = textContainer.size.width != containerWidth || textContainer.size.height < 10000
             textContainer.size = CGSize(width: containerWidth, height: .greatestFiniteMagnitude)
+            cachedContainerWidth = containerWidth
+            
+            // Force layout manager to recalculate text layout with new container size
+            if needsInvalidation {
+                layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: (text ?? "").count), actualCharacterRange: nil)
+                layoutManager.ensureLayout(for: textContainer)
+            }
+            
+            // #region agent log
+            debugLog("RNAnimatedInputView.swift:layoutSubviews", "textContainer.size updated", [
+                "newWidth": textContainer.size.width,
+                "newHeight": String(describing: textContainer.size.height),
+                "cachedContainerWidth": cachedContainerWidth,
+                "heightTracksTextViewAfter": textContainer.heightTracksTextView,
+                "needsInvalidation": needsInvalidation
+            ], hypothesisId: "B")
+            // #endregion
         }
         
         // Update placeholder width
@@ -239,9 +332,30 @@ import UIKit
         guard multiline && autoGrow else { return }
         guard bounds.width > 0 else { return }
         
-        // Calculate the height needed for current content
+        // Calculate the height needed for current content using layout manager's used rect
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        let calculatedHeight = usedRect.height + textContainerInset.top + textContainerInset.bottom
+        
+        // Also get sizeThatFits for comparison
         let fittingSize = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude))
-        var newHeight = fittingSize.height
+        let containerWidth = cachedContainerWidth > 0 ? cachedContainerWidth : bounds.width - textContainerInset.left - textContainerInset.right
+        
+        // Include placeholder height when there is no text so the control matches multi-line placeholders
+        let placeholderHeight = placeholderLabel?.sizeThatFits(CGSize(width: containerWidth, height: .greatestFiniteMagnitude)).height ?? 0
+        let contentBaseHeight = text.isEmpty ? placeholderHeight + textContainerInset.top + textContainerInset.bottom : max(calculatedHeight, fittingSize.height)
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:notifyContentSizeIfNeeded", "calculating content size", [
+            "usedRectHeight": usedRect.height,
+            "calculatedHeight": calculatedHeight,
+            "fittingHeight": fittingSize.height,
+            "contentBaseHeight": contentBaseHeight,
+            "textLength": (text ?? "").count
+        ], hypothesisId: "I")
+        // #endregion
+        
+        var newHeight = contentBaseHeight
         
         // Apply constraints
         newHeight = max(newHeight, minHeight)
@@ -254,13 +368,54 @@ import UIKit
         if abs(newHeight - lastContentHeight) > 0.5 {
             lastContentHeight = newHeight
             
+            // #region agent log
+            debugLog("RNAnimatedInputView.swift:notifyContentSizeIfNeeded", "sending onContentSizeChange", [
+                "newHeight": newHeight,
+                "boundsWidth": bounds.width,
+                "hasCallback": onContentSizeChange != nil
+            ], hypothesisId: "I")
+            // #endregion
+            
+            // Store target height so layoutSubviews can reapply it after RN layout
+            targetAutoGrowHeight = newHeight
+            
             onContentSizeChange?([
                 "contentSize": [
                     "width": bounds.width,
                     "height": newHeight
                 ]
             ])
+            
+            // Force intrinsic content size update and React Native layout
+            invalidateIntrinsicContentSize()
+            
+            // Directly update frame height
+            if abs(frame.height - newHeight) > 0.5 {
+                var newFrame = frame
+                newFrame.size.height = newHeight
+                frame = newFrame
+                
+                // #region agent log
+                debugLog("RNAnimatedInputView.swift:notifyContentSizeIfNeeded", "directly set frame height", [
+                    "newFrameHeight": frame.height,
+                    "newHeight": newHeight,
+                    "targetAutoGrowHeight": targetAutoGrowHeight
+                ], hypothesisId: "L")
+                // #endregion
+            }
+            
+            // Tell React Native to update the view's frame
+            if let reactSuperview = superview {
+                reactSuperview.setNeedsLayout()
+            }
         }
+    }
+    
+    public override var intrinsicContentSize: CGSize {
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        let height = usedRect.height + textContainerInset.top + textContainerInset.bottom
+        return CGSize(width: UIView.noIntrinsicMetric, height: max(height, minHeight))
     }
     
     // MARK: - Font Management
@@ -418,9 +573,7 @@ import UIKit
         mutableAttr.addAttribute(.foregroundColor, value: UIColor.clear, range: range)
         hiddenRanges.append(range)
         
-        let cursor = selectedRange
         attributedText = mutableAttr
-        selectedRange = cursor
         
         isInternalUpdate = false
     }
@@ -437,9 +590,7 @@ import UIKit
         mutableAttr.addAttribute(.foregroundColor, value: textColor ?? originalTextColor, range: range)
         hiddenRanges.removeAll { $0 == range }
         
-        let cursor = selectedRange
         attributedText = mutableAttr
-        selectedRange = cursor
         
         isInternalUpdate = false
     }
@@ -449,6 +600,7 @@ import UIKit
         
         // Get word position
         let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        layoutManager.ensureLayout(forCharacterRange: glyphRange)
         var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
         
         // Adjust for insets
@@ -464,7 +616,7 @@ import UIKit
         
         // Initial state: invisible and scaled up
         label.alpha = 0
-        label.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
+        label.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
         
         addSubview(label)
         animatingLabels.append(label)
@@ -489,12 +641,68 @@ import UIKit
         )
     }
     
+    private func resetDictationTracking() {
+        // Remove any in-flight animation overlays
+        animatingLabels.forEach { $0.removeFromSuperview() }
+        animatingLabels.removeAll()
+        
+        // Restore any hidden text
+        if !hiddenRanges.isEmpty {
+            isInternalUpdate = true
+            let rangesToRestore = hiddenRanges
+            hiddenRanges.removeAll()
+            
+            let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
+            for range in rangesToRestore {
+                if range.location + range.length <= mutableAttr.length {
+                    mutableAttr.addAttribute(.foregroundColor, value: textColor ?? originalTextColor, range: range)
+                }
+            }
+            attributedText = mutableAttr
+            isInternalUpdate = false
+        }
+        
+        previousText = text ?? ""
+        previousWordCount = previousText.split(separator: " ").count
+    }
+    
+    public func textViewDidChangeSelection(_ textView: UITextView) {
+        if isInternalUpdate {
+            return
+        }
+    }
+    
     // MARK: - UITextViewDelegate
     
     public func textViewDidChange(_ textView: UITextView) {
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:textViewDidChange", "textViewDidChange ENTRY", [
+            "isInternalUpdate": isInternalUpdate,
+            "textLength": (textView.text ?? "").count
+        ], hypothesisId: "F")
+        // #endregion
+        
         guard !isInternalUpdate else { return }
         
         let newText = textView.text ?? ""
+        
+        // Force layout recalculation
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:textViewDidChange", "text changed - layout info", [
+            "textLength": newText.count,
+            "textContainerWidth": textContainer.size.width,
+            "textContainerHeight": String(describing: textContainer.size.height),
+            "boundsWidth": bounds.width,
+            "usedRectWidth": usedRect.width,
+            "usedRectHeight": usedRect.height,
+            "numberOfGlyphs": layoutManager.numberOfGlyphs,
+            "numberOfLines": textContainer.maximumNumberOfLines,
+            "lineBreakMode": textContainer.lineBreakMode.rawValue
+        ], hypothesisId: "G")
+        // #endregion
         
         updatePlaceholderVisibility()
         
@@ -543,9 +751,36 @@ import UIKit
         let newText = value ?? ""
         guard text != newText else { return }
         
+        // CRITICAL: Ensure text container has unlimited height before setting text (Hypothesis T)
+        if textContainer.size.height < 10000 {
+            let containerWidth = bounds.width > 0 ? bounds.width - textContainerInset.left - textContainerInset.right : textContainer.size.width
+            textContainer.size = CGSize(width: containerWidth > 0 ? containerWidth : 338, height: .greatestFiniteMagnitude)
+        }
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:setValue", "setValue called", [
+            "newTextLength": newText.count,
+            "textContainerWidth": textContainer.size.width,
+            "textContainerHeight": String(describing: textContainer.size.height),
+            "boundsWidth": bounds.width
+        ], hypothesisId: "H")
+        // #endregion
+        
         text = newText
         previousText = newText
         previousWordCount = newText.split(separator: " ").count
+        
+        // Force layout after setting text
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        
+        // #region agent log
+        debugLog("RNAnimatedInputView.swift:setValue", "setValue after layout", [
+            "usedRectWidth": usedRect.width,
+            "usedRectHeight": usedRect.height,
+            "textContainerWidth": textContainer.size.width
+        ], hypothesisId: "H")
+        // #endregion
         
         updatePlaceholderVisibility()
         
