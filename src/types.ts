@@ -1,4 +1,9 @@
-import type { ViewStyle, TextStyle, ColorValue } from 'react-native';
+import type {
+  ViewStyle,
+  ColorValue,
+  NativeSyntheticEvent,
+  ProcessedColorValue,
+} from 'react-native';
 
 /**
  * Font size rule for dynamic sizing
@@ -8,6 +13,80 @@ export interface FontSizeRule {
   maxLength: number;
   /** Font size in points to use when text length is within maxLength */
   fontSize: number;
+}
+
+/**
+ * Content size dimensions
+ */
+export interface ContentSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * Native event payload for text events
+ */
+export interface NativeTextEventData {
+  text?: string;
+}
+
+/**
+ * Native event payload for content size changes
+ */
+export interface NativeContentSizeEventData {
+  contentSize?: ContentSize;
+}
+
+/**
+ * Props passed directly to the native iOS component.
+ * These use different naming conventions than the JS props
+ * (e.g., textAlignString instead of textAlign).
+ */
+export interface NativeAnimatedInputProps {
+  // Style
+  style?: ViewStyle & { height?: number };
+
+  // Event handlers (using native event format)
+  onChangeText?: (event: NativeSyntheticEvent<NativeTextEventData>) => void;
+  onInputFocus?: (event: NativeSyntheticEvent<Record<string, unknown>>) => void;
+  onInputBlur?: (event: NativeSyntheticEvent<Record<string, unknown>>) => void;
+  onInputSubmit?: (event: NativeSyntheticEvent<NativeTextEventData>) => void;
+  onContentSizeChange?: (event: NativeSyntheticEvent<NativeContentSizeEventData>) => void;
+
+  // Content
+  placeholder?: string;
+  placeholderTextColor?: ProcessedColorValue | null;
+
+  // Alignment (native uses string suffix)
+  textAlignString?: 'left' | 'center' | 'right';
+
+  // Typography
+  fontFamily?: string;
+
+  // Multiline & Auto-grow
+  multiline?: boolean;
+  autoGrow?: boolean;
+  maxHeight?: number;
+  minHeight?: number;
+
+  // Keyboard & Input (native uses string/enabled suffix naming)
+  keyboardTypeString?: string;
+  returnKeyTypeString?: string;
+  autoCapitalizeString?: string;
+  autoCorrectEnabled?: boolean;
+  secureTextEntryEnabled?: boolean;
+  editableEnabled?: boolean;
+  maxLength?: number;
+
+  // Dynamic sizing
+  dynamicSizing?: boolean;
+  fontSizeRulesJson?: string;
+  baseFontSize?: number;
+  minFontSize?: number;
+
+  // Dictation animation
+  isDictating?: boolean;
+  animationDuration?: number;
 }
 
 /**
@@ -150,11 +229,6 @@ export interface AnimatedInputProps {
   // Styling
   /** Style for the container view */
   style?: ViewStyle;
-  /** 
-   * Style for the text. Note: fontFamily should be set via the fontFamily prop
-   * for proper native handling.
-   */
-  textStyle?: TextStyle;
 }
 
 /**

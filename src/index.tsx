@@ -14,8 +14,19 @@ import {
 	StyleSheet,
 	UIManager,
 } from "react-native";
+import type {
+	HostComponent,
+	NativeSyntheticEvent,
+	ViewStyle,
+} from "react-native";
 
-import type { AnimatedInputProps, AnimatedInputRef } from "./types";
+import type {
+	AnimatedInputProps,
+	AnimatedInputRef,
+	NativeAnimatedInputProps,
+	NativeContentSizeEventData,
+	NativeTextEventData,
+} from "./types";
 
 // Component name in native code
 const COMPONENT_NAME = "RNAnimatedInputView";
@@ -25,30 +36,11 @@ const isNativeComponentAvailable =
 	Platform.OS === "ios" &&
 	UIManager.getViewManagerConfig(COMPONENT_NAME) != null;
 
-// Import native component
-const NativeAnimatedInput = isNativeComponentAvailable
-	? requireNativeComponent<any>(COMPONENT_NAME)
-	: null;
-
-// Native event types
-interface NativeTextEvent {
-	nativeEvent: {
-		text?: string;
-	};
-}
-
-interface NativeEvent {
-	nativeEvent: Record<string, unknown>;
-}
-
-interface NativeContentSizeEvent {
-	nativeEvent: {
-		contentSize?: {
-			width: number;
-			height: number;
-		};
-	};
-}
+// Import native component with proper typing
+const NativeAnimatedInput: HostComponent<NativeAnimatedInputProps> | null =
+	isNativeComponentAvailable
+		? requireNativeComponent<NativeAnimatedInputProps>(COMPONENT_NAME)
+		: null;
 
 // Default minimum height
 const DEFAULT_MIN_HEIGHT = 50;
@@ -111,7 +103,9 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 		},
 		ref,
 	) => {
-		const nativeRef = useRef<any>(null);
+		const nativeRef = useRef<React.ElementRef<
+			HostComponent<NativeAnimatedInputProps>
+		> | null>(null);
 
 		// Track height for auto-grow
 		const effectiveMinHeight = minHeight > 0 ? minHeight : DEFAULT_MIN_HEIGHT;
@@ -149,7 +143,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Handle text change from native
 		const handleChangeText = useCallback(
-			(event: NativeTextEvent) => {
+			(event: NativeSyntheticEvent<NativeTextEventData>) => {
 				const text = event.nativeEvent?.text ?? "";
 				onChangeText?.(text);
 			},
@@ -158,7 +152,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Handle focus
 		const handleFocus = useCallback(
-			(_event: NativeEvent) => {
+			(_event: NativeSyntheticEvent<Record<string, unknown>>) => {
 				onFocus?.();
 			},
 			[onFocus],
@@ -166,7 +160,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Handle blur
 		const handleBlur = useCallback(
-			(_event: NativeEvent) => {
+			(_event: NativeSyntheticEvent<Record<string, unknown>>) => {
 				onBlur?.();
 			},
 			[onBlur],
@@ -174,7 +168,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Handle submit
 		const handleSubmitEditing = useCallback(
-			(event: NativeTextEvent) => {
+			(event: NativeSyntheticEvent<NativeTextEventData>) => {
 				const text = event.nativeEvent?.text ?? "";
 				onSubmitEditing?.(text);
 			},
@@ -183,7 +177,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Handle content size change (for auto-grow)
 		const handleContentSizeChange = useCallback(
-			(event: NativeContentSizeEvent) => {
+			(event: NativeSyntheticEvent<NativeContentSizeEventData>) => {
 				const contentSize = event.nativeEvent?.contentSize;
 				if (contentSize) {
 					// Update height for auto-grow
@@ -240,14 +234,11 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Build style with auto-grow height
 		// When auto-grow is enabled, we need to set an explicit height
-		const finalStyle = StyleSheet.flatten([styles.default, style]);
+		const baseStyle = StyleSheet.flatten([styles.default, style]);
 
-		// Override with auto-grow height if enabled
-		if (multiline && autoGrow) {
-			(finalStyle as any).height = height;
-		}
-
-		const combinedStyle = finalStyle;
+		// Create combined style with optional auto-grow height override
+		const combinedStyle: ViewStyle & { height?: number } =
+			multiline && autoGrow ? { ...baseStyle, height } : baseStyle;
 
 		// Handle unsupported platform
 		if (!isNativeComponentAvailable) {
@@ -314,6 +305,7 @@ export type {
 	AnimatedInputProps,
 	AnimatedInputRef,
 	AutoCapitalize,
+	ContentSize,
 	FontSizeRule,
 	KeyboardType,
 	ReturnKeyType,
