@@ -186,9 +186,6 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
     const handleContentSizeChange = useCallback(
       (event: NativeContentSizeEvent) => {
         const contentSize = event.nativeEvent?.contentSize;
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/266566fa-a225-481b-9c55-e41f1945d4eb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:handleContentSizeChange',message:'contentSizeChange received',data:{contentSize,multiline,autoGrow,effectiveMinHeight,maxHeight,currentHeight:height},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'J'})}).catch(()=>{});
-        // #endregion
         if (contentSize) {
           // Update height for auto-grow
           if (multiline && autoGrow) {
@@ -201,10 +198,6 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
             if (maxHeight > 0) {
               newHeight = Math.min(newHeight, maxHeight);
             }
-            
-            // #region agent log
-            fetch('http://127.0.0.1:7244/ingest/266566fa-a225-481b-9c55-e41f1945d4eb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:handleContentSizeChange',message:'setting new height',data:{newHeight,contentSizeHeight:contentSize.height},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'J'})}).catch(()=>{});
-            // #endregion
             
             setHeight(newHeight);
           }
@@ -253,10 +246,6 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
     if (multiline && autoGrow) {
       (finalStyle as any).height = height;
     }
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/266566fa-a225-481b-9c55-e41f1945d4eb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.tsx:render',message:'building style',data:{height,multiline,autoGrow,styleHeight:(finalStyle as any).height},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'K'})}).catch(()=>{});
-    // #endregion
     
     const combinedStyle = finalStyle;
 

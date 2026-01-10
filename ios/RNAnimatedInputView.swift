@@ -212,18 +212,6 @@ import UIKit
         updateFont()
         configureForMultiline()
         
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:commonInit", "commonInit completed", [
-            "lineBreakMode": String(describing: textContainer.lineBreakMode.rawValue),
-            "lineFragmentPadding": textContainer.lineFragmentPadding,
-            "widthTracksTextView": textContainer.widthTracksTextView,
-            "heightTracksTextView": textContainer.heightTracksTextView,
-            "maximumNumberOfLines": textContainer.maximumNumberOfLines,
-            "isScrollEnabled": isScrollEnabled,
-            "multiline": multiline,
-            "autoGrow": autoGrow
-        ], hypothesisId: "C")
-        // #endregion
     }
     
     private func configureForMultiline() {
@@ -240,14 +228,6 @@ import UIKit
             isScrollEnabled = false
         }
         
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:configureForMultiline", "configured multiline", [
-            "multiline": multiline,
-            "autoGrow": autoGrow,
-            "maximumNumberOfLines": textContainer.maximumNumberOfLines,
-            "isScrollEnabled": isScrollEnabled
-        ], hypothesisId: "C")
-        // #endregion
     }
     
     // MARK: - Layout
@@ -255,44 +235,15 @@ import UIKit
     public override func layoutSubviews() {
         super.layoutSubviews()
         
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:layoutSubviews", "layoutSubviews called", [
-            "boundsWidth": bounds.width,
-            "boundsHeight": bounds.height,
-            "frameWidth": frame.width,
-            "frameHeight": frame.height,
-            "targetAutoGrowHeight": targetAutoGrowHeight,
-            "textContainerSizeWidthBefore": textContainer.size.width,
-            "textContainerSizeHeightBefore": textContainer.size.height
-        ], hypothesisId: "A")
-        // #endregion
-        
-        // Reapply target height if React Native reset it (Hypothesis M fix)
+        // Reapply target height if React Native reset it
         if multiline && autoGrow && targetAutoGrowHeight > 0 && abs(frame.height - targetAutoGrowHeight) > 0.5 {
             var newFrame = frame
             newFrame.size.height = targetAutoGrowHeight
             frame = newFrame
-            
-            // #region agent log
-            debugLog("RNAnimatedInputView.swift:layoutSubviews", "reapplied targetAutoGrowHeight", [
-                "targetAutoGrowHeight": targetAutoGrowHeight,
-                "newFrameHeight": frame.height
-            ], hypothesisId: "M")
-            // #endregion
         }
         
         // CRITICAL: Set text container width for proper text wrapping
         let containerWidth = bounds.width - textContainerInset.left - textContainerInset.right
-        
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:layoutSubviews", "containerWidth calculated", [
-            "containerWidth": containerWidth,
-            "insetLeft": textContainerInset.left,
-            "insetRight": textContainerInset.right,
-            "heightTracksTextView": textContainer.heightTracksTextView,
-            "widthTracksTextView": textContainer.widthTracksTextView
-        ], hypothesisId: "B")
-        // #endregion
         
         // Force disable tracking - UITextView may override our settings
         textContainer.widthTracksTextView = false
@@ -309,16 +260,6 @@ import UIKit
                 layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: (text ?? "").count), actualCharacterRange: nil)
                 layoutManager.ensureLayout(for: textContainer)
             }
-            
-            // #region agent log
-            debugLog("RNAnimatedInputView.swift:layoutSubviews", "textContainer.size updated", [
-                "newWidth": textContainer.size.width,
-                "newHeight": String(describing: textContainer.size.height),
-                "cachedContainerWidth": cachedContainerWidth,
-                "heightTracksTextViewAfter": textContainer.heightTracksTextView,
-                "needsInvalidation": needsInvalidation
-            ], hypothesisId: "B")
-            // #endregion
         }
         
         // Update placeholder width
@@ -345,16 +286,6 @@ import UIKit
         let placeholderHeight = placeholderLabel?.sizeThatFits(CGSize(width: containerWidth, height: .greatestFiniteMagnitude)).height ?? 0
         let contentBaseHeight = text.isEmpty ? placeholderHeight + textContainerInset.top + textContainerInset.bottom : max(calculatedHeight, fittingSize.height)
         
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:notifyContentSizeIfNeeded", "calculating content size", [
-            "usedRectHeight": usedRect.height,
-            "calculatedHeight": calculatedHeight,
-            "fittingHeight": fittingSize.height,
-            "contentBaseHeight": contentBaseHeight,
-            "textLength": (text ?? "").count
-        ], hypothesisId: "I")
-        // #endregion
-        
         var newHeight = contentBaseHeight
         
         // Apply constraints
@@ -367,14 +298,6 @@ import UIKit
         // Only notify if changed
         if abs(newHeight - lastContentHeight) > 0.5 {
             lastContentHeight = newHeight
-            
-            // #region agent log
-            debugLog("RNAnimatedInputView.swift:notifyContentSizeIfNeeded", "sending onContentSizeChange", [
-                "newHeight": newHeight,
-                "boundsWidth": bounds.width,
-                "hasCallback": onContentSizeChange != nil
-            ], hypothesisId: "I")
-            // #endregion
             
             // Store target height so layoutSubviews can reapply it after RN layout
             targetAutoGrowHeight = newHeight
@@ -394,14 +317,6 @@ import UIKit
                 var newFrame = frame
                 newFrame.size.height = newHeight
                 frame = newFrame
-                
-                // #region agent log
-                debugLog("RNAnimatedInputView.swift:notifyContentSizeIfNeeded", "directly set frame height", [
-                    "newFrameHeight": frame.height,
-                    "newHeight": newHeight,
-                    "targetAutoGrowHeight": targetAutoGrowHeight
-                ], hypothesisId: "L")
-                // #endregion
             }
             
             // Tell React Native to update the view's frame
@@ -675,35 +590,11 @@ import UIKit
     // MARK: - UITextViewDelegate
     
     public func textViewDidChange(_ textView: UITextView) {
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:textViewDidChange", "textViewDidChange ENTRY", [
-            "isInternalUpdate": isInternalUpdate,
-            "textLength": (textView.text ?? "").count
-        ], hypothesisId: "F")
-        // #endregion
-        
         guard !isInternalUpdate else { return }
         
         let newText = textView.text ?? ""
         
         // Force layout recalculation
-        layoutManager.ensureLayout(for: textContainer)
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:textViewDidChange", "text changed - layout info", [
-            "textLength": newText.count,
-            "textContainerWidth": textContainer.size.width,
-            "textContainerHeight": String(describing: textContainer.size.height),
-            "boundsWidth": bounds.width,
-            "usedRectWidth": usedRect.width,
-            "usedRectHeight": usedRect.height,
-            "numberOfGlyphs": layoutManager.numberOfGlyphs,
-            "numberOfLines": textContainer.maximumNumberOfLines,
-            "lineBreakMode": textContainer.lineBreakMode.rawValue
-        ], hypothesisId: "G")
-        // #endregion
-        
         updatePlaceholderVisibility()
         
         if dynamicSizing {
@@ -757,30 +648,12 @@ import UIKit
             textContainer.size = CGSize(width: containerWidth > 0 ? containerWidth : 338, height: .greatestFiniteMagnitude)
         }
         
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:setValue", "setValue called", [
-            "newTextLength": newText.count,
-            "textContainerWidth": textContainer.size.width,
-            "textContainerHeight": String(describing: textContainer.size.height),
-            "boundsWidth": bounds.width
-        ], hypothesisId: "H")
-        // #endregion
-        
         text = newText
         previousText = newText
         previousWordCount = newText.split(separator: " ").count
         
         // Force layout after setting text
         layoutManager.ensureLayout(for: textContainer)
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        
-        // #region agent log
-        debugLog("RNAnimatedInputView.swift:setValue", "setValue after layout", [
-            "usedRectWidth": usedRect.width,
-            "usedRectHeight": usedRect.height,
-            "textContainerWidth": textContainer.size.width
-        ], hypothesisId: "H")
-        // #endregion
         
         updatePlaceholderVisibility()
         
