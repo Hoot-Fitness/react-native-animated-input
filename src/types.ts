@@ -41,10 +41,12 @@ export interface NativeContentSizeEventData {
  * Props passed directly to the native iOS component.
  * These use different naming conventions than the JS props
  * (e.g., textAlignString instead of textAlign).
+ * 
+ * @internal This interface is for internal use only and may change between versions.
  */
 export interface NativeAnimatedInputProps {
-  // Style
-  style?: ViewStyle & { height?: number };
+  // Style - accepts ViewStyle, height is managed internally as a number for auto-grow
+  style?: ViewStyle;
 
   // Event handlers (using native event format)
   onChangeText?: (event: NativeSyntheticEvent<NativeTextEventData>) => void;

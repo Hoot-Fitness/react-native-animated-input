@@ -252,8 +252,11 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 		const baseStyle = StyleSheet.flatten([styles.default, style]);
 
 		// Create combined style with optional auto-grow height override
-		const combinedStyle: ViewStyle & { height?: number } =
-			multiline && autoGrow ? { ...baseStyle, height } : baseStyle;
+		// The native component expects height as a number, so we cast appropriately
+		const combinedStyle =
+			multiline && autoGrow
+				? { ...baseStyle, height }
+				: baseStyle;
 
 		// Get the native component (lazy initialization prevents HMR duplicate registration)
 		const NativeComponent = getNativeComponent();
@@ -319,13 +322,17 @@ const styles = StyleSheet.create({
 	},
 });
 
-// Re-export types
+// Re-export types for library consumers
 export type {
+	// Core component types
 	AnimatedInputProps,
 	AnimatedInputRef,
-	AutoCapitalize,
+	// Utility types
 	ContentSize,
 	FontSizeRule,
+	TextChangeEvent,
+	// Keyboard & input option types
+	AutoCapitalize,
 	KeyboardType,
 	ReturnKeyType,
 } from "./types";
