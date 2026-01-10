@@ -22,6 +22,7 @@ import UIKit
             default: _textAlign = .left
             }
             self.textAlignment = _textAlign
+            placeholderLabel?.textAlignment = _textAlign
         }
     }
     
