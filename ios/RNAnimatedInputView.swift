@@ -452,10 +452,13 @@ import UIKit
         
         insertSubview(label, at: 0)  // Insert behind text layer instead of on top
         
+        // Use frameLayoutGuide for constraints - UITextView inherits from UIScrollView,
+        // and its leadingAnchor/trailingAnchor reference content size, not the visible frame.
+        // frameLayoutGuide ensures the placeholder fills the visible width correctly.
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: topAnchor, constant: textContainerInset.top),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: textContainerInset.left + textContainer.lineFragmentPadding),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(textContainerInset.right + textContainer.lineFragmentPadding))
+            label.topAnchor.constraint(equalTo: frameLayoutGuide.topAnchor, constant: textContainerInset.top),
+            label.leadingAnchor.constraint(equalTo: frameLayoutGuide.leadingAnchor, constant: textContainerInset.left),
+            label.trailingAnchor.constraint(equalTo: frameLayoutGuide.trailingAnchor, constant: -textContainerInset.right)
         ])
         
         placeholderLabel = label
