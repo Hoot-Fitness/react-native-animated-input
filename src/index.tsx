@@ -37,11 +37,16 @@ const isNativeComponentAvailable =
 	Platform.OS === "ios" &&
 	UIManager.getViewManagerConfig(COMPONENT_NAME) != null;
 
-// Import native component with proper typing
-const NativeAnimatedInput: HostComponent<NativeAnimatedInputProps> | null =
-	isNativeComponentAvailable
-		? requireNativeComponent<NativeAnimatedInputProps>(COMPONENT_NAME)
-		: null;
+// Lazy initialization to prevent duplicate registration during HMR
+let NativeAnimatedInput: HostComponent<NativeAnimatedInputProps> | null = null;
+
+function getNativeComponent(): HostComponent<NativeAnimatedInputProps> | null {
+	if (NativeAnimatedInput === null && isNativeComponentAvailable) {
+		NativeAnimatedInput =
+			requireNativeComponent<NativeAnimatedInputProps>(COMPONENT_NAME);
+	}
+	return NativeAnimatedInput;
+}
 
 // Default minimum height
 const DEFAULT_MIN_HEIGHT = 50;
@@ -250,8 +255,11 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 		const combinedStyle: ViewStyle & { height?: number } =
 			multiline && autoGrow ? { ...baseStyle, height } : baseStyle;
 
+		// Get the native component (lazy initialization prevents HMR duplicate registration)
+		const NativeComponent = getNativeComponent();
+
 		// Handle unsupported platform
-		if (!isNativeComponentAvailable) {
+		if (!NativeComponent) {
 			console.warn(
 				"react-native-animated-input: Native component not available. " +
 					"This library currently only supports iOS.",
@@ -260,7 +268,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 		}
 
 		return (
-			<NativeAnimatedInput
+			<NativeComponent
 				ref={nativeRef}
 				style={combinedStyle}
 				// Content
