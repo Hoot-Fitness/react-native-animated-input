@@ -502,7 +502,8 @@ import UIKit
             return
         }
         
-        mutableAttr.addAttribute(.foregroundColor, value: textColor ?? originalTextColor, range: range)
+        // Use originalTextColor because textColor might be affected by hideWordAt's clear color
+        mutableAttr.addAttribute(.foregroundColor, value: originalTextColor, range: range)
         hiddenRanges.removeAll { $0 == range }
         
         attributedText = mutableAttr
@@ -526,14 +527,19 @@ import UIKit
         let label = UILabel()
         label.text = word
         label.font = self.font
-        label.textColor = textColor ?? originalTextColor
+        // Use originalTextColor because textColor might be affected by hideWordAt's clear color
+        label.textColor = originalTextColor
+        label.textAlignment = .left  // Label contains just the word, left align it
         label.frame = rect
+        label.layer.zPosition = 1000  // Ensure label is above text layer
+        label.backgroundColor = .clear
         
         // Initial state: invisible and scaled up
         label.alpha = 0
         label.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
         
         addSubview(label)
+        bringSubviewToFront(label)
         animatingLabels.append(label)
         
         // Animate
@@ -542,7 +548,7 @@ import UIKit
             delay: delay,
             usingSpringWithDamping: 0.8,
             initialSpringVelocity: 0.3,
-            options: [],
+            options: [.allowUserInteraction],
             animations: {
                 label.alpha = 1
                 label.transform = .identity
@@ -570,7 +576,8 @@ import UIKit
             let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
             for range in rangesToRestore {
                 if range.location + range.length <= mutableAttr.length {
-                    mutableAttr.addAttribute(.foregroundColor, value: textColor ?? originalTextColor, range: range)
+                    // Use originalTextColor because textColor might be affected by hideWordAt's clear color
+                    mutableAttr.addAttribute(.foregroundColor, value: originalTextColor, range: range)
                 }
             }
             attributedText = mutableAttr
@@ -642,13 +649,30 @@ import UIKit
         let newText = value ?? ""
         guard text != newText else { return }
         
-        // CRITICAL: Ensure text container has unlimited height before setting text (Hypothesis T)
+        // CRITICAL: Ensure text container has unlimited height before setting text
         if textContainer.size.height < 10000 {
             let containerWidth = bounds.width > 0 ? bounds.width - textContainerInset.left - textContainerInset.right : textContainer.size.width
             textContainer.size = CGSize(width: containerWidth > 0 ? containerWidth : 338, height: .greatestFiniteMagnitude)
         }
         
-        text = newText
+        // Update text with correct color - use attributedText to ensure originalTextColor is used
+        // (plain text = would use textColor which might be transparent from hideWordAt)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = _textAlign
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: originalTextColor,
+            .font: self.font ?? UIFont.systemFont(ofSize: baseFontSize),
+            .paragraphStyle: paragraphStyle
+        ]
+        let attrString = NSAttributedString(string: newText, attributes: attributes)
+        self.attributedText = attrString
+        
+        // Handle animation (compares previousText with new text, then hides new words)
+        if isDictating {
+            handleTextChangeForAnimation(newText: newText)
+        }
+        
+        // Update tracking state AFTER animation handling
         previousText = newText
         previousWordCount = newText.split(separator: " ").count
         
