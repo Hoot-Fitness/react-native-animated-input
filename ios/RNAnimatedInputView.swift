@@ -130,7 +130,15 @@ import UIKit
                 return (maxLen, size)
             }.sorted { $0.0 < $1.0 }
             
-            if dynamicSizing { updateFontSizeForTextLength() }
+            if dynamicSizing { 
+                updateFontSizeForTextLength() 
+            }
+            
+            // Schedule restoration after font rules change to prevent text clipping
+            // This handles the case when rules change during keyboard blur
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                self?.performTextContainerRestore()
+            }
         }
     }
     
@@ -138,6 +146,11 @@ import UIKit
         didSet {
             currentFontSize = baseFontSize
             updateFont()
+            
+            // Schedule restoration after font size change to prevent text clipping
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.performTextContainerRestore()
+            }
         }
     }
     
@@ -450,6 +463,10 @@ import UIKit
             UIView.animate(withDuration: animationDuration / 1000.0) {
                 self.currentFontSize = targetSize
                 self.updateFont()
+            } completion: { [weak self] _ in
+                // Restore text container settings after font animation completes
+                // Font changes can invalidate layout and cause text clipping
+                self?.performTextContainerRestore()
             }
         }
     }
