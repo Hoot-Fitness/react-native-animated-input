@@ -15,7 +15,6 @@ import type {
 import {
 	findNodeHandle,
 	Platform,
-	processColor,
 	requireNativeComponent,
 	StyleSheet,
 	UIManager,
@@ -243,13 +242,6 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				)
 			: undefined;
 
-		// Process colors
-		const processedPlaceholderColor = placeholderTextColor
-			? processColor(placeholderTextColor)
-			: undefined;
-		const processedTextColor = textColor
-			? processColor(textColor)
-			: undefined;
 
 		// Build style with auto-grow height
 		// When auto-grow is enabled, we need to set an explicit height
@@ -281,8 +273,8 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				// Content
 				onChangeText={handleChangeText}
 				placeholder={placeholder}
-				placeholderTextColor={processedPlaceholderColor}
-				inputTextColor={processedTextColor}
+				placeholderTextColor={placeholderTextColor}
+				inputTextColor={textColor}
 				// Alignment
 				textAlignString={textAlign}
 				// Typography

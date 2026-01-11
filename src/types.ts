@@ -2,7 +2,6 @@ import type {
   ViewStyle,
   ColorValue,
   NativeSyntheticEvent,
-  ProcessedColorValue,
 } from 'react-native';
 
 /**
@@ -69,8 +68,8 @@ export interface NativeAnimatedInputProps {
 
   // Content
   placeholder?: string;
-  placeholderTextColor?: ProcessedColorValue | null;
-  inputTextColor?: ProcessedColorValue | null;
+  placeholderTextColor?: ColorValue;
+  inputTextColor?: ColorValue;
 
   // Alignment (native uses string suffix)
   textAlignString?: 'left' | 'center' | 'right';
