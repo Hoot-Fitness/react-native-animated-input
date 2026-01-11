@@ -206,7 +206,7 @@ import UIKit
     private var cachedContainerWidth: CGFloat = 0
     private var dictationInsertPosition: Int = 0  // Cursor position when dictation started
     private var textBeforeDictation: String = ""  // Text content before dictation started (baseline for comparison)
-    private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
+    private let hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
     
     // MARK: - Initialization
     
@@ -661,8 +661,11 @@ import UIKit
         animatingLabels.append(label)
         
         // Schedule haptic feedback to fire when the animation actually starts (after delay)
+        // Must prepare() shortly before impactOccurred() for reliable feedback
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.hapticGenerator.impactOccurred()
+            guard let self = self else { return }
+            self.hapticGenerator.prepare()
+            self.hapticGenerator.impactOccurred()
         }
         
         // Animate
