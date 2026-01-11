@@ -755,11 +755,69 @@ import UIKit
     }
     
     public func textViewDidBeginEditing(_ textView: UITextView) {
+        // iOS may internally modify text container properties when keyboard appears
+        // Force re-establish our settings to prevent text clipping
+        restoreTextContainerSettings()
+        
         onInputFocus?([:])
     }
     
     public func textViewDidEndEditing(_ textView: UITextView) {
+        // iOS may internally modify text container properties when keyboard disappears
+        // Force re-establish our settings to prevent text clipping
+        restoreTextContainerSettings()
+        
         onInputBlur?([:])
+    }
+    
+    /// Restore text container settings that iOS may have modified during focus/blur
+    /// This prevents text below the first line from being clipped
+    private func restoreTextContainerSettings() {
+        performTextContainerRestore()
+        
+        // Schedule a delayed restore to handle any asynchronous changes iOS makes
+        // after keyboard animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.performTextContainerRestore()
+        }
+    }
+    
+    /// Performs the actual text container restoration
+    private func performTextContainerRestore() {
+        // Re-establish unlimited height for proper text wrapping
+        let containerWidth = bounds.width > 0 
+            ? bounds.width - textContainerInset.left - textContainerInset.right 
+            : (cachedContainerWidth > 0 ? cachedContainerWidth : 338)
+        
+        // Force disable tracking - iOS may have re-enabled these
+        textContainer.widthTracksTextView = false
+        textContainer.heightTracksTextView = false
+        
+        // Restore multiline settings - iOS may have modified these
+        if multiline {
+            textContainer.maximumNumberOfLines = 0  // Unlimited lines
+        }
+        textContainer.lineBreakMode = .byWordWrapping
+        textContainer.lineFragmentPadding = 0
+        
+        // Set container size with unlimited height
+        textContainer.size = CGSize(width: containerWidth, height: .greatestFiniteMagnitude)
+        
+        // Invalidate and re-ensure layout to recalculate text positions
+        let textLength = (text ?? "").count
+        if textLength > 0 {
+            layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: textLength), actualCharacterRange: nil)
+            layoutManager.ensureLayout(for: textContainer)
+        }
+        
+        // Ensure scroll settings are maintained for auto-grow mode
+        if multiline && autoGrow {
+            isScrollEnabled = false
+        }
+        
+        // Force layout update
+        setNeedsLayout()
+        layoutIfNeeded()
     }
     
     public func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
