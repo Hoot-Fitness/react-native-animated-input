@@ -207,6 +207,7 @@ import UIKit
     private var dictationInsertPosition: Int = 0  // Cursor position when dictation started
     private var textBeforeDictation: String = ""  // Text content before dictation started (baseline for comparison)
     private let hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private var lastHapticTime: CFTimeInterval = 0
     
     // MARK: - Initialization
     
@@ -579,14 +580,7 @@ import UIKit
         // Hide the word in the text view
         hideWordAt(range: range)
         
-        // Schedule haptic to fire when this word's animation starts
-        // Create a fresh generator inline to avoid any state issues with stored generator
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred(intensity: 1.0)
-        }
-        
-        // Wait for layout then create overlay
+        // Wait for layout then create overlay (haptic is triggered in createAndAnimateLabel)
         DispatchQueue.main.async { [weak self] in
             self?.createAndAnimateLabel(word: word, range: range, delay: delay)
         }
@@ -667,7 +661,12 @@ import UIKit
         bringSubviewToFront(label)
         animatingLabels.append(label)
         
-        // Animate (haptic is triggered in animateNewWord)
+        // Schedule haptic to fire at exact animation start time (same delay as animation)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.fireHapticThrottled()
+        }
+        
+        // Animate
         UIView.animate(
             withDuration: animationDuration / 1000.0,
             delay: delay,
@@ -693,6 +692,23 @@ import UIKit
         
         previousText = text ?? ""
         previousWordCount = previousText.split(separator: " ").count
+    }
+    
+    /// Fires haptic feedback with throttling to prevent iOS from suppressing rapid impacts.
+    /// - Parameter minInterval: Minimum time between haptics in seconds. Default ~60ms.
+    private func fireHapticThrottled(minInterval: CFTimeInterval = 0.06) {
+        guard isDictating else { return }
+        
+        let now = CACurrentMediaTime()
+        guard now - lastHapticTime >= minInterval else { return }
+        lastHapticTime = now
+        
+        hapticGenerator.prepare()
+        if #available(iOS 13.0, *) {
+            hapticGenerator.impactOccurred(intensity: 1.0)
+        } else {
+            hapticGenerator.impactOccurred()
+        }
     }
     
     /// Immediately complete all in-flight animations by removing overlay labels.
