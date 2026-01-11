@@ -579,6 +579,13 @@ import UIKit
         // Hide the word in the text view
         hideWordAt(range: range)
         
+        // Schedule haptic to fire when this word's animation starts
+        // Create a fresh generator inline to avoid any state issues with stored generator
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred(intensity: 1.0)
+        }
+        
         // Wait for layout then create overlay
         DispatchQueue.main.async { [weak self] in
             self?.createAndAnimateLabel(word: word, range: range, delay: delay)
@@ -660,15 +667,7 @@ import UIKit
         bringSubviewToFront(label)
         animatingLabels.append(label)
         
-        // Schedule haptic feedback to fire when the animation actually starts (after delay)
-        // Must prepare() shortly before impactOccurred() for reliable feedback
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self = self else { return }
-            self.hapticGenerator.prepare()
-            self.hapticGenerator.impactOccurred()
-        }
-        
-        // Animate
+        // Animate (haptic is triggered in animateNewWord)
         UIView.animate(
             withDuration: animationDuration / 1000.0,
             delay: delay,
