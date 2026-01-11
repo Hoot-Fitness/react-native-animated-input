@@ -151,8 +151,6 @@ import UIKit
             if isDictating && !oldValue {
                 dictationInsertPosition = selectedRange.location
                 textBeforeDictation = text
-                // Prepare haptic generator for immediate response
-                hapticGenerator.prepare()
             }
             
             // Reset tracking when dictation mode toggles to avoid stale hidden ranges
@@ -206,8 +204,6 @@ import UIKit
     private var cachedContainerWidth: CGFloat = 0
     private var dictationInsertPosition: Int = 0  // Cursor position when dictation started
     private var textBeforeDictation: String = ""  // Text content before dictation started (baseline for comparison)
-    private let hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
-    private var lastHapticTime: CFTimeInterval = 0
     
     // MARK: - Initialization
     
@@ -246,9 +242,6 @@ import UIKit
         // Initial setup
         currentFontSize = baseFontSize
         originalTextColor = textColor ?? .label
-        
-        // Prepare haptic generator for immediate response during dictation
-        hapticGenerator.prepare()
         
         // NOTE: We intentionally do NOT add a custom tap gesture recognizer here.
         // UITextView has built-in tap handling for focus. Adding a custom gesture
@@ -580,7 +573,7 @@ import UIKit
         // Hide the word in the text view
         hideWordAt(range: range)
         
-        // Wait for layout then create overlay (haptic is triggered in createAndAnimateLabel)
+        // Wait for layout then create overlay
         DispatchQueue.main.async { [weak self] in
             self?.createAndAnimateLabel(word: word, range: range, delay: delay)
         }
@@ -661,11 +654,6 @@ import UIKit
         bringSubviewToFront(label)
         animatingLabels.append(label)
         
-        // Schedule haptic to fire at exact animation start time (same delay as animation)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.fireHapticThrottled()
-        }
-        
         // Animate
         UIView.animate(
             withDuration: animationDuration / 1000.0,
@@ -692,23 +680,6 @@ import UIKit
         
         previousText = text ?? ""
         previousWordCount = previousText.split(separator: " ").count
-    }
-    
-    /// Fires haptic feedback with throttling to prevent iOS from suppressing rapid impacts.
-    /// - Parameter minInterval: Minimum time between haptics in seconds. Default ~60ms.
-    private func fireHapticThrottled(minInterval: CFTimeInterval = 0.06) {
-        guard isDictating else { return }
-        
-        let now = CACurrentMediaTime()
-        guard now - lastHapticTime >= minInterval else { return }
-        lastHapticTime = now
-        
-        hapticGenerator.prepare()
-        if #available(iOS 13.0, *) {
-            hapticGenerator.impactOccurred(intensity: 1.0)
-        } else {
-            hapticGenerator.impactOccurred()
-        }
     }
     
     /// Immediately complete all in-flight animations by removing overlay labels.
