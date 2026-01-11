@@ -660,8 +660,10 @@ import UIKit
         bringSubviewToFront(label)
         animatingLabels.append(label)
         
-        // Trigger light haptic feedback for each word
-        hapticGenerator.impactOccurred()
+        // Schedule haptic feedback to fire when the animation actually starts (after delay)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.hapticGenerator.impactOccurred()
+        }
         
         // Animate
         UIView.animate(
