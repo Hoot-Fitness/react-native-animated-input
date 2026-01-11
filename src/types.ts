@@ -70,6 +70,7 @@ export interface NativeAnimatedInputProps {
   // Content
   placeholder?: string;
   placeholderTextColor?: ProcessedColorValue | null;
+  inputTextColor?: ProcessedColorValue | null;
 
   // Alignment (native uses string suffix)
   textAlignString?: 'left' | 'center' | 'right';
@@ -149,6 +150,8 @@ export interface AnimatedInputProps {
   placeholder?: string;
   /** Color of the placeholder text */
   placeholderTextColor?: ColorValue;
+  /** Color of the input text */
+  textColor?: ColorValue;
 
   // Alignment
   /** Text alignment within the input */

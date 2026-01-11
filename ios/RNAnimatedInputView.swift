@@ -173,6 +173,25 @@ import UIKit
         didSet { placeholderLabel?.textColor = placeholderTextColor }
     }
     
+    @objc public var inputTextColor: UIColor? {
+        didSet {
+            if let color = inputTextColor {
+                originalTextColor = color
+                textColor = color
+                // Update any existing text with the new color
+                if !text.isEmpty {
+                    isInternalUpdate = true
+                    let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
+                    mutableAttr.addAttribute(.foregroundColor, value: color, range: NSRange(location: 0, length: mutableAttr.length))
+                    let savedCursorPosition = selectedRange
+                    attributedText = mutableAttr
+                    selectedRange = savedCursorPosition
+                    isInternalUpdate = false
+                }
+            }
+        }
+    }
+    
     // MARK: - Internal State
     
     private var previousText: String = ""

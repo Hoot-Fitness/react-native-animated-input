@@ -82,6 +82,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 			onChangeText,
 			placeholder,
 			placeholderTextColor,
+			textColor,
 			textAlign = "left",
 			fontFamily,
 			multiline = true,
@@ -242,9 +243,12 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				)
 			: undefined;
 
-		// Process placeholder color
+		// Process colors
 		const processedPlaceholderColor = placeholderTextColor
 			? processColor(placeholderTextColor)
+			: undefined;
+		const processedTextColor = textColor
+			? processColor(textColor)
 			: undefined;
 
 		// Build style with auto-grow height
@@ -278,6 +282,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				onChangeText={handleChangeText}
 				placeholder={placeholder}
 				placeholderTextColor={processedPlaceholderColor}
+				inputTextColor={processedTextColor}
 				// Alignment
 				textAlignString={textAlign}
 				// Typography
