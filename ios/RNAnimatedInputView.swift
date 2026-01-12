@@ -134,6 +134,61 @@ import UIKit
                 updateFontSizeForTextLength() 
             }
             
+            // CRITICAL FIX: Force UITextView to completely rebuild its text rendering.
+            // All TextKit metrics show correct values, but UITextView's internal rendering
+            // doesn't update. We need to force a COMPLETE rebuild by:
+            // 1. Clear and re-set text (forces UITextView's internal caches to reset)
+            // 2. Re-configure container
+            // 3. Invalidate and re-layout
+            let textLength = (text ?? "").count
+            if textLength > 0, let currentFont = self.font {
+                let currentText = text ?? ""
+                let savedCursor = selectedRange
+                
+                isInternalUpdate = true
+                
+                // NUCLEAR OPTION: Clear text completely first to force UITextView to reset
+                // its internal rendering state
+                text = ""
+                
+                // Re-configure container while empty
+                ensureTextContainerConfigured()
+                
+                // Now re-create and set the attributed text
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.alignment = _textAlign
+                
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .foregroundColor: originalTextColor,
+                    .font: currentFont,
+                    .paragraphStyle: paragraphStyle
+                ]
+                
+                let newAttrString = NSAttributedString(string: currentText, attributes: attributes)
+                attributedText = newAttrString
+                
+                // Restore cursor (clamped to valid range)
+                let newCursorLocation = min(savedCursor.location, textLength)
+                selectedRange = NSRange(location: newCursorLocation, length: 0)
+                
+                isInternalUpdate = false
+                
+                // Re-ensure container is configured after setting text
+                ensureTextContainerConfigured()
+                
+                // Force COMPLETE layout regeneration
+                let fullRange = NSRange(location: 0, length: textLength)
+                layoutManager.invalidateGlyphs(forCharacterRange: fullRange, changeInLength: 0, actualCharacterRange: nil)
+                layoutManager.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
+                layoutManager.ensureLayout(for: textContainer)
+                
+                // Force view and layer updates
+                setNeedsLayout()
+                layoutIfNeeded()
+                setNeedsDisplay()
+                layer.setNeedsDisplay()
+            }
+            
             // Schedule multiple restorations to ensure layout settles correctly
             // after font rules change (e.g., during keyboard blur)
             DispatchQueue.main.async { [weak self] in
@@ -349,6 +404,7 @@ import UIKit
         // CRITICAL: Always enforce maximumNumberOfLines for multiline mode
         // Something may be resetting this to 1, causing text clipping
         let linesNeedsFix = multiline && textContainer.maximumNumberOfLines != 0
+        
         if linesNeedsFix {
             textContainer.maximumNumberOfLines = 0
         }
