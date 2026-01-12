@@ -346,17 +346,37 @@ import UIKit
         textContainer.widthTracksTextView = false
         textContainer.heightTracksTextView = false
         
+        // CRITICAL: Always enforce maximumNumberOfLines for multiline mode
+        // Something may be resetting this to 1, causing text clipping
+        let linesNeedsFix = multiline && textContainer.maximumNumberOfLines != 0
+        if linesNeedsFix {
+            textContainer.maximumNumberOfLines = 0
+        }
+        
+        // Ensure other critical settings
+        textContainer.lineBreakMode = .byWordWrapping
+        textContainer.lineFragmentPadding = 0
+        
         // Always set the container size for proper wrapping - width for wrap, height unlimited
         if containerWidth > 0 {
-            let needsInvalidation = textContainer.size.width != containerWidth || textContainer.size.height < 10000
+            let needsInvalidation = textContainer.size.width != containerWidth || textContainer.size.height < 10000 || linesNeedsFix
             textContainer.size = CGSize(width: containerWidth, height: .greatestFiniteMagnitude)
             cachedContainerWidth = containerWidth
             
             // Force layout manager to recalculate text layout with new container size
             if needsInvalidation {
-                layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: (text ?? "").count), actualCharacterRange: nil)
-                layoutManager.ensureLayout(for: textContainer)
+                let textLength = (text ?? "").count
+                if textLength > 0 {
+                    layoutManager.invalidateGlyphs(forCharacterRange: NSRange(location: 0, length: textLength), changeInLength: 0, actualCharacterRange: nil)
+                    layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: textLength), actualCharacterRange: nil)
+                    layoutManager.ensureLayout(for: textContainer)
+                }
             }
+        }
+        
+        // Ensure scroll is disabled for auto-grow mode
+        if multiline && autoGrow && isScrollEnabled {
+            isScrollEnabled = false
         }
         
         // Update placeholder width
@@ -459,20 +479,31 @@ import UIKit
     /// Updates the font attribute on all existing attributed text
     /// This is necessary because setting self.font doesn't update attributed text
     private func updateAttributedTextFont(_ newFont: UIFont) {
+        guard !text.isEmpty else { return }
+        
         isInternalUpdate = true
         
         // CRITICAL: Ensure text container is properly configured BEFORE setting attributed text
         ensureTextContainerConfigured()
         
-        let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
-        let fullRange = NSRange(location: 0, length: mutableAttr.length)
+        // Create a completely NEW attributed string with fresh attributes
+        // This forces UITextView to completely regenerate glyphs and layout
+        // (Modifying existing attributed text can leave stale layout data)
+        let currentText = text ?? ""
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = _textAlign
         
-        // Update font for entire text
-        mutableAttr.addAttribute(.font, value: newFont, range: fullRange)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: originalTextColor,
+            .font: newFont,
+            .paragraphStyle: paragraphStyle
+        ]
+        
+        let newAttrString = NSAttributedString(string: currentText, attributes: attributes)
         
         // Preserve cursor position
         let savedCursorPosition = selectedRange
-        attributedText = mutableAttr
+        attributedText = newAttrString
         selectedRange = savedCursorPosition
         
         isInternalUpdate = false
@@ -481,13 +512,21 @@ import UIKit
         // UITextView may have reset some settings internally
         ensureTextContainerConfigured()
         
-        // Force layout recalculation after font change
+        // Force COMPLETE layout regeneration - invalidate both glyphs AND layout
+        let fullRange = NSRange(location: 0, length: currentText.count)
+        layoutManager.invalidateGlyphs(forCharacterRange: fullRange, changeInLength: 0, actualCharacterRange: nil)
         layoutManager.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
         layoutManager.ensureLayout(for: textContainer)
+        
+        // Force intrinsic content size recalculation
+        invalidateIntrinsicContentSize()
         
         // Force view layout update
         setNeedsLayout()
         layoutIfNeeded()
+        
+        // Notify about content size change
+        notifyContentSizeIfNeeded()
     }
     
     /// Ensures the text container is properly configured for multiline text
@@ -505,6 +544,11 @@ import UIKit
         textContainer.lineBreakMode = .byWordWrapping
         textContainer.lineFragmentPadding = 0
         textContainer.size = CGSize(width: containerWidth, height: .greatestFiniteMagnitude)
+        
+        // Also ensure scroll is disabled for auto-grow
+        if multiline && autoGrow {
+            isScrollEnabled = false
+        }
     }
     
     private func updateFontSizeForTextLength() {
@@ -883,10 +927,12 @@ import UIKit
         // Set container size with unlimited height
         textContainer.size = CGSize(width: containerWidth, height: .greatestFiniteMagnitude)
         
-        // Invalidate and re-ensure layout to recalculate text positions
+        // Invalidate BOTH glyphs AND layout to force complete text regeneration
         let textLength = (text ?? "").count
         if textLength > 0 {
-            layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: textLength), actualCharacterRange: nil)
+            let fullRange = NSRange(location: 0, length: textLength)
+            layoutManager.invalidateGlyphs(forCharacterRange: fullRange, changeInLength: 0, actualCharacterRange: nil)
+            layoutManager.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
             layoutManager.ensureLayout(for: textContainer)
         }
         
