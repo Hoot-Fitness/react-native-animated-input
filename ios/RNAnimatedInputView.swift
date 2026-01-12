@@ -1069,6 +1069,11 @@ import UIKit
             textContainer.size = CGSize(width: containerWidth > 0 ? containerWidth : 338, height: .greatestFiniteMagnitude)
         }
         
+        // Save current cursor position before setting attributedText (which resets it to end)
+        // This is needed for autocomplete - iOS positions the cursor correctly after accepting
+        // a suggestion, but setting attributedText would move it to the end
+        let savedCursorPosition = selectedRange
+        
         // Update text with correct color - use attributedText to ensure originalTextColor is used
         // (plain text = would use textColor which might be transparent from hideWordAt)
         let paragraphStyle = NSMutableParagraphStyle()
@@ -1081,13 +1086,19 @@ import UIKit
         let attrString = NSAttributedString(string: newText, attributes: attributes)
         self.attributedText = attrString
         
-        // Position cursor after the inserted dictated content
+        // Restore cursor position
         if isDictating {
+            // Position cursor after the inserted dictated content
             // Cursor should be at: dictationInsertPosition + length of dictated content
             let dictatedLength = max(0, text.count - textBeforeDictation.count)
             let cursorPos = min(dictationInsertPosition + dictatedLength, text.count)
             
             selectedRange = NSRange(location: cursorPos, length: 0)
+        } else {
+            // For non-dictation (including autocomplete), restore the cursor position
+            // Clamp to valid range in case text length changed
+            let newCursorLocation = min(savedCursorPosition.location, newText.count)
+            selectedRange = NSRange(location: newCursorLocation, length: 0)
         }
         
         // Handle animation (compares previousText with new text, then hides new words)
