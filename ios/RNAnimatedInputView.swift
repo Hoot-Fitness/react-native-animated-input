@@ -134,9 +134,12 @@ import UIKit
                 updateFontSizeForTextLength() 
             }
             
-            // Schedule restoration after font rules change to prevent text clipping
-            // This handles the case when rules change during keyboard blur
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            // Schedule multiple restorations to ensure layout settles correctly
+            // after font rules change (e.g., during keyboard blur)
+            DispatchQueue.main.async { [weak self] in
+                self?.performTextContainerRestore()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 self?.performTextContainerRestore()
             }
         }
@@ -148,7 +151,7 @@ import UIKit
             updateFont()
             
             // Schedule restoration after font size change to prevent text clipping
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            DispatchQueue.main.async { [weak self] in
                 self?.performTextContainerRestore()
             }
         }
@@ -444,6 +447,64 @@ import UIKit
         }
         
         placeholderLabel?.font = self.font
+        
+        // CRITICAL: Also update the attributed text with the new font
+        // When text is set as attributed text, changing self.font doesn't automatically
+        // update the font attributes on existing text, which causes layout issues
+        if !text.isEmpty, let newFont = self.font {
+            updateAttributedTextFont(newFont)
+        }
+    }
+    
+    /// Updates the font attribute on all existing attributed text
+    /// This is necessary because setting self.font doesn't update attributed text
+    private func updateAttributedTextFont(_ newFont: UIFont) {
+        isInternalUpdate = true
+        
+        // CRITICAL: Ensure text container is properly configured BEFORE setting attributed text
+        ensureTextContainerConfigured()
+        
+        let mutableAttr = NSMutableAttributedString(attributedString: attributedText)
+        let fullRange = NSRange(location: 0, length: mutableAttr.length)
+        
+        // Update font for entire text
+        mutableAttr.addAttribute(.font, value: newFont, range: fullRange)
+        
+        // Preserve cursor position
+        let savedCursorPosition = selectedRange
+        attributedText = mutableAttr
+        selectedRange = savedCursorPosition
+        
+        isInternalUpdate = false
+        
+        // CRITICAL: Ensure text container is properly configured AFTER setting attributed text
+        // UITextView may have reset some settings internally
+        ensureTextContainerConfigured()
+        
+        // Force layout recalculation after font change
+        layoutManager.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
+        layoutManager.ensureLayout(for: textContainer)
+        
+        // Force view layout update
+        setNeedsLayout()
+        layoutIfNeeded()
+    }
+    
+    /// Ensures the text container is properly configured for multiline text
+    private func ensureTextContainerConfigured() {
+        let containerWidth = bounds.width > 0 
+            ? bounds.width - textContainerInset.left - textContainerInset.right 
+            : (cachedContainerWidth > 0 ? cachedContainerWidth : 338)
+        
+        textContainer.widthTracksTextView = false
+        textContainer.heightTracksTextView = false
+        
+        if multiline {
+            textContainer.maximumNumberOfLines = 0
+        }
+        textContainer.lineBreakMode = .byWordWrapping
+        textContainer.lineFragmentPadding = 0
+        textContainer.size = CGSize(width: containerWidth, height: .greatestFiniteMagnitude)
     }
     
     private func updateFontSizeForTextLength() {
@@ -460,12 +521,14 @@ import UIKit
         targetSize = max(targetSize, minFontSize)
         
         if targetSize != currentFontSize {
-            UIView.animate(withDuration: animationDuration / 1000.0) {
-                self.currentFontSize = targetSize
-                self.updateFont()
-            } completion: { [weak self] _ in
-                // Restore text container settings after font animation completes
-                // Font changes can invalidate layout and cause text clipping
+            // Update font size immediately - don't use animation block for attributed text changes
+            // UIView.animate is for animating view properties, not text content changes
+            // Setting attributedText inside an animation block causes layout issues
+            currentFontSize = targetSize
+            updateFont()
+            
+            // Schedule restoration to ensure layout settles correctly
+            DispatchQueue.main.async { [weak self] in
                 self?.performTextContainerRestore()
             }
         }
