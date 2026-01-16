@@ -82,6 +82,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 			placeholder,
 			placeholderTextColor,
 			textColor,
+			selectionColor,
 			textAlign = "left",
 			fontFamily,
 			multiline = true,
@@ -275,6 +276,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				placeholder={placeholder}
 				placeholderTextColor={placeholderTextColor}
 				inputTextColor={textColor}
+				selectionColor={selectionColor}
 				// Alignment
 				textAlignString={textAlign}
 				// Typography

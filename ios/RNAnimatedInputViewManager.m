@@ -20,6 +20,7 @@ RCT_EXPORT_VIEW_PROPERTY(onInputSubmit, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(placeholder, NSString)
 RCT_EXPORT_VIEW_PROPERTY(placeholderTextColor, UIColor)
 RCT_EXPORT_VIEW_PROPERTY(inputTextColor, UIColor)
+RCT_EXPORT_VIEW_PROPERTY(selectionColor, UIColor)
 RCT_EXPORT_VIEW_PROPERTY(textAlignString, NSString)
 
 // Typography

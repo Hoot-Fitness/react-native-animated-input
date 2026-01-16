@@ -301,6 +301,10 @@ import UIKit
         delegate = self
         backgroundColor = .clear
         
+        // Set tintColor for text selection highlight and cursor
+        // Without this, selection may be invisible if parent views have clear tint
+        tintColor = .tintColor
+        
         // CRITICAL: Disable automatic font scaling from accessibility settings.
         // This ensures the font sizes passed via baseFontSize and fontSizeRules
         // are used literally, regardless of the user's accessibility font settings.
