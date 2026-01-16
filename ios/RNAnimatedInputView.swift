@@ -261,6 +261,15 @@ import UIKit
         }
     }
     
+    @objc public var selectionColor: UIColor? {
+        didSet {
+            // tintColor controls cursor color and text selection highlight color
+            if let color = selectionColor {
+                tintColor = color
+            }
+        }
+    }
+    
     // MARK: - Internal State
     
     private var previousText: String = ""
@@ -1069,9 +1078,13 @@ import UIKit
             textContainer.size = CGSize(width: containerWidth > 0 ? containerWidth : 338, height: .greatestFiniteMagnitude)
         }
         
-        // Save current cursor position before setting attributedText (which resets it to end)
-        // This is needed for autocomplete - iOS positions the cursor correctly after accepting
-        // a suggestion, but setting attributedText would move it to the end
+        // Determine if user is actively editing with keyboard (not dictating)
+        // When actively editing, iOS handles cursor positioning correctly for autocomplete,
+        // typing, etc. We should NOT interfere with it to avoid cursor glitches.
+        let isActivelyEditingWithKeyboard = isFirstResponder && !isDictating
+        
+        // Only save cursor position if we're going to restore it later
+        // (i.e., not during active keyboard editing where iOS handles it)
         let savedCursorPosition = selectedRange
         
         // Update text with correct color - use attributedText to ensure originalTextColor is used
@@ -1086,7 +1099,7 @@ import UIKit
         let attrString = NSAttributedString(string: newText, attributes: attributes)
         self.attributedText = attrString
         
-        // Restore cursor position
+        // Restore cursor position based on context
         if isDictating {
             // Position cursor after the inserted dictated content
             // Cursor should be at: dictationInsertPosition + length of dictated content
@@ -1094,8 +1107,14 @@ import UIKit
             let cursorPos = min(dictationInsertPosition + dictatedLength, text.count)
             
             selectedRange = NSRange(location: cursorPos, length: 0)
+        } else if isActivelyEditingWithKeyboard {
+            // User is actively typing/using autocomplete - let iOS handle cursor naturally
+            // Setting attributedText moves cursor to end, which is correct for most keyboard
+            // interactions (typing adds to end, autocomplete replaces and cursor goes to end)
+            // We do NOT restore the saved position here to avoid cursor jumping to middle of words
+            selectedRange = NSRange(location: newText.count, length: 0)
         } else {
-            // For non-dictation (including autocomplete), restore the cursor position
+            // Programmatic text change while not focused - restore cursor position
             // Clamp to valid range in case text length changed
             let newCursorLocation = min(savedCursorPosition.location, newText.count)
             selectedRange = NSRange(location: newCursorLocation, length: 0)
