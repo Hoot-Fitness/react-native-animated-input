@@ -301,9 +301,20 @@ import UIKit
         delegate = self
         backgroundColor = .clear
         
+        // CRITICAL: Configure view for proper selection highlight rendering
+        // When backgroundColor is clear, these settings ensure the selection highlight
+        // layer composites correctly over the transparent background
+        isOpaque = false
+        layer.isOpaque = false
+        clipsToBounds = false
+        clearsContextBeforeDrawing = true
+        layer.allowsGroupOpacity = true
+        
         // Set tintColor for text selection highlight and cursor
-        // Without this, selection may be invisible if parent views have clear tint
-        tintColor = .tintColor
+        // tintColor affects: cursor, selection handles, AND selection highlight
+        // Use systemBlue as a reliable default since .tintColor might not propagate
+        // correctly through React Native's view hierarchy
+        tintColor = .systemBlue
         
         // CRITICAL: Disable automatic font scaling from accessibility settings.
         // This ensures the font sizes passed via baseFontSize and fontSizeRules
@@ -1151,6 +1162,14 @@ import UIKit
     
     @objc public func blur() {
         resignFirstResponder()
+    }
+    
+    // MARK: - Appearance
+    
+    public override func tintColorDidChange() {
+        super.tintColorDidChange()
+        // Force redraw when tint color changes to update selection highlight
+        setNeedsDisplay()
     }
     
     // MARK: - Cleanup
