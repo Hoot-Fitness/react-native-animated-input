@@ -586,14 +586,19 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
 
     private fun notifyContentSizeIfNeeded() {
         if (!multiline || !autoGrow) return
-        val layout = editText.layout ?: return
 
-        var contentHeight = layout.height.toFloat() +
-                editText.paddingTop.toFloat() +
-                editText.paddingBottom.toFloat()
+        val editWidth = if (editText.width > 0) editText.width else width
+        if (editWidth <= 0) return
+
+        editText.measure(
+            MeasureSpec.makeMeasureSpec(editWidth, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        )
+
+        var contentHeight = editText.measuredHeight.toFloat()
 
         if ((editText.text?.length ?: 0) == 0 && editText.hint?.isNotEmpty() == true) {
-            val hintWidth = editText.width - editText.paddingLeft - editText.paddingRight
+            val hintWidth = editWidth - editText.paddingLeft - editText.paddingRight
             if (hintWidth > 0) {
                 @Suppress("DEPRECATION")
                 val hintLayout = android.text.StaticLayout(
@@ -857,6 +862,21 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
         layout(left, top, right, bottom)
     }
 
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (changed) {
+            val w = right - left
+            val h = bottom - top
+            if (w > 0 && h > 0) {
+                editText.measure(
+                    MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(h, MeasureSpec.AT_MOST)
+                )
+                editText.layout(0, 0, editText.measuredWidth, editText.measuredHeight)
+            }
+        }
+    }
+
     /**
      * Inner EditText that notifies the parent FrameLayout about size changes
      * so auto-grow content size events fire correctly.
@@ -873,6 +893,14 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
             super.onTextChanged(text, start, lengthBefore, lengthAfter)
             if (!isInternalUpdate) {
                 post { this@RNAnimatedInputView.notifyContentSizeIfNeeded() }
+            }
+        }
+
+        override fun scrollTo(x: Int, y: Int) {
+            if (this@RNAnimatedInputView.multiline && this@RNAnimatedInputView.autoGrow) {
+                super.scrollTo(x, 0)
+            } else {
+                super.scrollTo(x, y)
             }
         }
     }
