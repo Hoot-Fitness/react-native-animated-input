@@ -21,6 +21,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -31,6 +32,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.views.text.ReactFontManager
 
 import org.json.JSONArray
 
@@ -78,6 +80,9 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
     private data class HiddenSpanInfo(val span: ForegroundColorSpan, val start: Int, val end: Int)
 
     init {
+        clipChildren = false
+        clipToPadding = false
+
         editText = InnerEditText(context)
         editText.layoutParams = LayoutParams(
             LayoutParams.MATCH_PARENT,
@@ -153,12 +158,20 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
         }
 
         currentFontSize = baseFontSize
+
+        viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                viewTreeObserver.removeOnGlobalLayoutListener(this)
+                notifyContentSizeIfNeeded()
+            }
+        })
     }
 
     // -- Prop setters called from ViewManager --
 
     fun setPlaceholderText(text: String?) {
         editText.hint = text
+        post { notifyContentSizeIfNeeded() }
     }
 
     fun setPlaceholderColor(color: Int?) {
@@ -249,6 +262,7 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
     }
 
     fun setAutoCapitalizeProp(autoCapitalize: String) {
+        val savedTypeface = editText.typeface
         val capFlag = when (autoCapitalize) {
             "none" -> 0
             "words" -> InputType.TYPE_TEXT_FLAG_CAP_WORDS
@@ -260,24 +274,29 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
                 InputType.TYPE_TEXT_FLAG_CAP_WORDS or
                 InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS).inv()
         editText.inputType = cleared or capFlag
+        editText.typeface = savedTypeface
     }
 
     fun setAutoCorrectProp(autoCorrect: Boolean) {
+        val savedTypeface = editText.typeface
         val current = editText.inputType
         editText.inputType = if (autoCorrect) {
             current or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
         } else {
             (current and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT.inv()) or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         }
+        editText.typeface = savedTypeface
     }
 
     fun setSecureTextEntryProp(secure: Boolean) {
+        val savedTypeface = editText.typeface
         val current = editText.inputType
         editText.inputType = if (secure) {
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         } else {
             current and InputType.TYPE_TEXT_VARIATION_PASSWORD.inv()
         }
+        editText.typeface = savedTypeface
     }
 
     fun setEditableProp(editable: Boolean) {
@@ -350,6 +369,7 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
 
     fun setValueFromJS(value: String?) {
         var newText = value ?: ""
+        val originalJsText = newText
         val currentText = editText.text?.toString() ?: ""
         if (currentText == newText) return
 
@@ -402,6 +422,12 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
             handleTextChangeForAnimation(newText)
         }
 
+        if (newText != originalJsText) {
+            sendEvent("onChangeText", Arguments.createMap().apply {
+                putString("text", newText)
+            })
+        }
+
         previousText = newText
         previousWordCount = newText.split(" ").filter { it.isNotEmpty() }.size
 
@@ -438,7 +464,7 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
     // -- Internal helpers --
 
     private fun configureInputType() {
-        val baseType = editText.inputType and InputType.TYPE_MASK_CLASS
+        val savedTypeface = editText.typeface
         if (multiline) {
             editText.isSingleLine = false
             editText.inputType = editText.inputType or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -451,9 +477,11 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
             editText.inputType = editText.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE.inv()
             editText.maxLines = 1
         }
+        editText.typeface = savedTypeface
     }
 
     private fun applyInputType(baseType: Int) {
+        val savedTypeface = editText.typeface
         var newType = baseType
         if (multiline && (newType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT) {
             newType = newType or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -463,6 +491,7 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
         if (multiline) {
             editText.setHorizontallyScrolling(false)
         }
+        editText.typeface = savedTypeface
     }
 
     private fun updateFont() {
@@ -471,16 +500,34 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
 
         val family = fontFamily
         if (family != null && family.isNotEmpty()) {
-            try {
-                val typeface = Typeface.create(family, Typeface.NORMAL)
+            val typeface = resolveTypeface(family)
+            if (typeface != null) {
                 editText.typeface = typeface
-            } catch (_: Exception) {
-                try {
-                    val assetTypeface = Typeface.createFromAsset(context.assets, "fonts/$family.ttf")
-                    editText.typeface = assetTypeface
-                } catch (_: Exception) {}
             }
         }
+    }
+
+    private fun resolveTypeface(fontFamily: String): Typeface? {
+        try {
+            val typeface = ReactFontManager.getInstance()
+                .getTypeface(fontFamily, Typeface.NORMAL, context.assets)
+            if (typeface != null && typeface != Typeface.DEFAULT) {
+                return typeface
+            }
+        } catch (_: Exception) {}
+
+        for (ext in listOf("ttf", "otf")) {
+            try {
+                return Typeface.createFromAsset(context.assets, "fonts/$fontFamily.$ext")
+            } catch (_: Exception) {}
+        }
+
+        val systemTypeface = Typeface.create(fontFamily, Typeface.NORMAL)
+        if (systemTypeface != Typeface.DEFAULT) {
+            return systemTypeface
+        }
+
+        return null
     }
 
     private fun updateFontSizeForTextLength() {
@@ -541,9 +588,25 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
         if (!multiline || !autoGrow) return
         val layout = editText.layout ?: return
 
-        val contentHeight = layout.height.toFloat() +
+        var contentHeight = layout.height.toFloat() +
                 editText.paddingTop.toFloat() +
                 editText.paddingBottom.toFloat()
+
+        if ((editText.text?.length ?: 0) == 0 && editText.hint?.isNotEmpty() == true) {
+            val hintWidth = editText.width - editText.paddingLeft - editText.paddingRight
+            if (hintWidth > 0) {
+                @Suppress("DEPRECATION")
+                val hintLayout = android.text.StaticLayout(
+                    editText.hint, editText.paint, hintWidth,
+                    android.text.Layout.Alignment.ALIGN_NORMAL,
+                    1.0f, 0.0f, false
+                )
+                val hintHeight = hintLayout.height.toFloat() +
+                        editText.paddingTop.toFloat() +
+                        editText.paddingBottom.toFloat()
+                contentHeight = contentHeight.coerceAtLeast(hintHeight)
+            }
+        }
 
         var newHeight = contentHeight
         if (propMinHeight > 0) {
@@ -662,8 +725,19 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
         isInternalUpdate = false
     }
 
-    private fun createAndAnimateLabel(word: String, start: Int, end: Int, delay: Double) {
-        val layout = editText.layout ?: return
+    private fun createAndAnimateLabel(word: String, start: Int, end: Int, delay: Double, retryCount: Int = 0) {
+        val layout = editText.layout
+        if (layout == null) {
+            if (retryCount < 3) {
+                editText.post { createAndAnimateLabel(word, start, end, delay, retryCount + 1) }
+            } else {
+                val spanInfo = hiddenSpans.find { it.start == start && it.end == end }
+                if (spanInfo != null) {
+                    showWordAt(spanInfo)
+                }
+            }
+            return
+        }
 
         val line = layout.getLineForOffset(start)
         val x = layout.getPrimaryHorizontal(start) + editText.paddingLeft
