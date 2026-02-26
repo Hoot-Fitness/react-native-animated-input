@@ -33,7 +33,7 @@ const COMPONENT_NAME = "RNAnimatedInputView";
 
 // Check if the native component is available
 const isNativeComponentAvailable =
-	Platform.OS === "ios" &&
+	(Platform.OS === "ios" || Platform.OS === "android") &&
 	UIManager.getViewManagerConfig(COMPONENT_NAME) != null;
 
 // Lazy initialization to prevent duplicate registration during HMR
@@ -122,7 +122,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 		// Expose focus/blur methods via ref
 		useImperativeHandle(ref, () => ({
 			focus: () => {
-				if (nativeRef.current && Platform.OS === "ios") {
+				if (nativeRef.current) {
 					const nodeHandle = findNodeHandle(nativeRef.current);
 					if (nodeHandle != null) {
 						UIManager.dispatchViewManagerCommand(
@@ -135,7 +135,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 				}
 			},
 			blur: () => {
-				if (nativeRef.current && Platform.OS === "ios") {
+				if (nativeRef.current) {
 					const nodeHandle = findNodeHandle(nativeRef.current);
 					if (nodeHandle != null) {
 						UIManager.dispatchViewManagerCommand(
@@ -220,7 +220,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 
 		// Update native value when prop changes
 		useEffect(() => {
-			if (nativeRef.current && Platform.OS === "ios") {
+			if (nativeRef.current) {
 				const nodeHandle = findNodeHandle(nativeRef.current);
 				if (nodeHandle != null) {
 					UIManager.dispatchViewManagerCommand(
@@ -262,7 +262,7 @@ export const AnimatedInput = forwardRef<AnimatedInputRef, AnimatedInputProps>(
 		if (!NativeComponent) {
 			console.warn(
 				"react-native-animated-input: Native component not available. " +
-					"This library currently only supports iOS.",
+					"This library supports iOS and Android only.",
 			);
 			return null;
 		}

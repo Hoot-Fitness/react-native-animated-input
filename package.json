@@ -1,7 +1,7 @@
 {
   "name": "react-native-animated-input",
   "version": "1.0.0",
-  "description": "A React Native text input with dynamic font sizing and word-by-word dictation animations, powered by native iOS/Swift",
+  "description": "A React Native text input with dynamic font sizing and word-by-word dictation animations for iOS and Android",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/index.d.ts",
@@ -11,6 +11,7 @@
     "src",
     "lib",
     "ios",
+    "android",
     "react-native-animated-input.podspec",
     "!**/__tests__",
     "!**/__fixtures__",
@@ -24,6 +25,7 @@
   "keywords": [
     "react-native",
     "ios",
+    "android",
     "animated",
     "input",
     "text-input",
