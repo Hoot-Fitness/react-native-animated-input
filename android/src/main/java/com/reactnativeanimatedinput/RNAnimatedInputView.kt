@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.reactnativeanimatedinput
 
 import android.animation.Animator
@@ -27,7 +29,7 @@ import android.widget.TextView
 
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
-import com.facebook.react.uimanager.UIManagerModule
+import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
 
 import org.json.JSONArray
@@ -752,7 +754,8 @@ class RNAnimatedInputView(context: Context) : FrameLayout(context) {
 
     // -- Event sending --
 
-    private fun sendEvent(eventName: String, params: com.facebook.react.bridge.WritableMap) {
+    @Suppress("DEPRECATION")
+    private fun sendEvent(eventName: String, params: WritableMap) {
         reactContext.getJSModule(RCTEventEmitter::class.java)
             .receiveEvent(id, eventName, params)
     }

@@ -1,7 +1,6 @@
 package com.reactnativeanimatedinput
 
 import com.facebook.react.bridge.ReadableArray
-import com.facebook.react.common.MapBuilder
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
@@ -149,47 +148,35 @@ class RNAnimatedInputViewManager : SimpleViewManager<RNAnimatedInputView>() {
     // -- Commands --
 
     override fun getCommandsMap(): Map<String, Int> {
-        return MapBuilder.of(
-            "setValue", COMMAND_SET_VALUE,
-            "focus", COMMAND_FOCUS,
-            "blur", COMMAND_BLUR
+        return mapOf(
+            "setValue" to COMMAND_SET_VALUE,
+            "focus" to COMMAND_FOCUS,
+            "blur" to COMMAND_BLUR
         )
     }
 
-    override fun receiveCommand(view: RNAnimatedInputView, commandId: Int, args: ReadableArray?) {
+    override fun receiveCommand(view: RNAnimatedInputView, commandId: String, args: ReadableArray?) {
         when (commandId) {
-            COMMAND_SET_VALUE -> {
+            "setValue", COMMAND_SET_VALUE.toString() -> {
                 val value = args?.getString(0)
                 view.setValueFromJS(value)
             }
-            COMMAND_FOCUS -> view.focusInput()
-            COMMAND_BLUR -> view.blurInput()
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    override fun receiveCommand(view: RNAnimatedInputView, commandId: String?, args: ReadableArray?) {
-        when (commandId) {
-            "setValue" -> {
-                val value = args?.getString(0)
-                view.setValueFromJS(value)
-            }
-            "focus" -> view.focusInput()
-            "blur" -> view.blurInput()
+            "focus", COMMAND_FOCUS.toString() -> view.focusInput()
+            "blur", COMMAND_BLUR.toString() -> view.blurInput()
         }
     }
 
     // -- Events --
 
-    override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
-        return MapBuilder.builder<String, Any>()
-            .put("onChangeText", MapBuilder.of("registrationName", "onChangeText"))
-            .put("onInputFocus", MapBuilder.of("registrationName", "onInputFocus"))
-            .put("onInputBlur", MapBuilder.of("registrationName", "onInputBlur"))
-            .put("onInputSubmit", MapBuilder.of("registrationName", "onInputSubmit"))
-            .put("onContentSizeChange", MapBuilder.of("registrationName", "onContentSizeChange"))
-            .put("onDictationTap", MapBuilder.of("registrationName", "onDictationTap"))
-            .build()
+    override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> {
+        val events = super.getExportedCustomDirectEventTypeConstants() ?: mutableMapOf()
+        events["onChangeText"] = mapOf("registrationName" to "onChangeText")
+        events["onInputFocus"] = mapOf("registrationName" to "onInputFocus")
+        events["onInputBlur"] = mapOf("registrationName" to "onInputBlur")
+        events["onInputSubmit"] = mapOf("registrationName" to "onInputSubmit")
+        events["onContentSizeChange"] = mapOf("registrationName" to "onContentSizeChange")
+        events["onDictationTap"] = mapOf("registrationName" to "onDictationTap")
+        return events
     }
 
     override fun onDropViewInstance(view: RNAnimatedInputView) {
