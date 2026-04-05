@@ -1043,6 +1043,52 @@ import UIKit
         return true
     }
     
+    // MARK: - Edit Menu Support
+    
+    public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)) {
+            return UIPasteboard.general.hasStrings
+        }
+        if action == #selector(copy(_:)) || action == #selector(cut(_:)) {
+            return selectedRange.length > 0
+        }
+        if action == #selector(select(_:)) || action == #selector(selectAll(_:)) {
+            return !text.isEmpty
+        }
+        return super.canPerformAction(action, withSender: sender)
+    }
+    
+    public override func paste(_ sender: Any?) {
+        guard let pastedText = UIPasteboard.general.string else { return }
+        
+        if maxLength > 0 {
+            let currentLength = text.count
+            let newLength = currentLength + pastedText.count - selectedRange.length
+            if newLength > maxLength { return }
+        }
+        
+        let nsText = (text ?? "") as NSString
+        let newText = nsText.replacingCharacters(in: selectedRange, with: pastedText)
+        let newCursorPosition = selectedRange.location + pastedText.count
+        
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = _textAlign
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: originalTextColor,
+            .font: self.font ?? UIFont.systemFont(ofSize: baseFontSize),
+            .paragraphStyle: paragraphStyle
+        ]
+        attributedText = NSAttributedString(string: newText, attributes: attributes)
+        selectedRange = NSRange(location: newCursorPosition, length: 0)
+        
+        updatePlaceholderVisibility()
+        if dynamicSizing { updateFontSizeForTextLength() }
+        notifyContentSizeIfNeeded()
+        onChangeText?(["text": newText])
+        previousText = newText
+        previousWordCount = newText.split(separator: " ").count
+    }
+    
     // MARK: - React Native Methods
     
     @objc public func setValue(_ value: String?) {
